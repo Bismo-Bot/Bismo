@@ -20,9 +20,13 @@ const build = "3.0.1[1]";
 const useDPAPI = false; // DPAPI is currently broken here
 var isWin = process.platform === "win32";
 
-const endTerminalCode = "\x1b[0m\x1b[47m\x1b[30m"; // Default colors, \x1b[47m\x1b[30m: Black text, white background
+if (debug)
+	var endTerminalCode = "\x1b[0m";
+else 
+	var endTerminalCode = "\x1b[0m\x1b[47m\x1b[30m"; // Default colors, \x1b[47m\x1b[30m: Black text, white background
 
 
+Error.stackTraceLimit = 3;
 
 
 const Bismo = {
@@ -34,6 +38,9 @@ Bismo.log = function(msg) {
 	ogLog(msg + endTerminalCode);
 }
 console.log = Bismo.log;
+console.error = function(msg) {
+	Bismo.log(endTerminalCode + "\x1b[31m" + msg);
+}
 
 ogLog(endTerminalCode);
 ogLog();
@@ -60,6 +67,15 @@ if (isWin) {
 
 // /^v/^\v/^\v/^\v/^\v^\
 console.log("\n");
+
+
+
+
+process.on('unhandledRejection', (error, p) => {
+  dlog('=== UNHANDLED REJECTION ===');
+  dlog(error.stack);
+});
+
 
 
 // Event declares
@@ -131,6 +147,9 @@ function readJSONFileSync(path) {
 
 
 
+
+
+
 // Discord.JS
 const Discord = require('discord.js');
 const Client = new Discord.Client();
@@ -162,7 +181,7 @@ const Config = readJSONFileSync('./config.json');
 var GAccounts = []; // These are our configurations regarding guilds
 var Accounts = []; // " regarding users
 
-var Commands = {};
+var Commands = new Map();
 var WaitForReply = [];
 // Use this to wait for additional input from a user. When called, the user ($ID)'s next message will be sent straight to the callback function. We do not process the next message from user $ID (as a command or anything else)
 // To cancel input collection, the user just has to reply with the "cancel command". Note, this command DOES NOT require the user to type the bot's prefix, (! or its mention) for us to process it. The user just types the cancel command in its entirety.
@@ -527,9 +546,9 @@ Bismo.getGuildChannelObject = function(ID,channelID) {
 Bismo.registerCommand = function(name, handler, description, helpMessage, data) {
 	if (data == undefined)
 		data = {};
-	if (Commands[name] == undefined) {
+	if (Commands.get(name) == undefined) {
 		Bismo.log("\x1b[32mNew command registered: \"!" + name + "\"\x1b[0m");
-		Commands[name] = {
+		Commands.set(name, {
 			handler: handler,
 			description: description,
 			helpMessage: helpMessage,
@@ -539,7 +558,7 @@ Bismo.registerCommand = function(name, handler, description, helpMessage, data) 
 			hidden: data.hidden,
 			guildRequired: data.guildRequired,
 			noParams: data.noParams,
-		};
+		});
 		return true;
 	} else {
 		dlog("Failed to register command \"!" + name + "\"! It was already registered.")
@@ -661,7 +680,11 @@ for (var i = 0; i<dirs.length; i++) {
 				if (typeof plugin.main === "function")
 					(async function() { // ewwww NASTY
 						plugin.main(requests); // "This should be done asynchronously :shrug:"
-					}());
+					})().catch(err => {
+						console.error("\x1b[31m[B **] The plugin " + fName + " has encountered an error while loading and has halted." + "\x1b[0m");
+						dlog("Stack trace: " + err.stack);
+
+					});
 				else
 					Bismo.log("\x1b[31m[B] Error, the plugin " + fName + " is missing the main function and therefore not valid!" + "\x1b[0m");
 
@@ -811,158 +834,178 @@ Client.on('voiceStateUpdate', (oldMember, newMember) => { // Call 'observers'
 
 
 /*  MESSAGES / COMMANDS  */
-Client.on("message", async message => {
-	// The most import part, commands.
-	if(message.type === "PINS_ADD" && message.author.bot) message.delete(); // Remove pin notifications from the bot.
-
-	if (message.author.bot || message.author.system) return; // Do not process bot responses.
-	if (WaitForReply.indexOf(crypto.createHash('sha1').update(message.author.id + message.channel.id).digest('base64'))>-1) return; // Do not process reply responses. (this is already processed.)
-
-
-	// Emotes
-	if (message.content.startsWith("<:") && message.content.endsWith(">")) {
-		if (message.content.startsWith("<:dawson:")) {
-			message.delete().then(o_o=>{ message.channel.send("", {files: ["https://s.cnewb.co/dawson.png"]}) });
-		}
-
-		return;
-	}
-
-
-	function Reply(msg) {
-		message.channel.send(msg);
-	}
-
-
-	// Grab required data
-	var guildID = message.author.id;
-	if (message.guild!=undefined)
-		guildID = message.guild.id;
-
-	var myMention = "<@!" + Client.user.id + ">";
-	var guildData = Bismo.getGuild(guildID);
-
-
-	// Only listen to the guild's prefix or my mention
-	var prefix = "";
-	var inGuild;
-	if (guildData!=undefined) {
-		inGuild = true;
-		if (message.content.startsWith(guildData.prefix)) {
-			prefix = guildData.prefix;
-		}
-	} else {
-		inGuild = false;
-		if (message.content.startsWith("!")) {
-			prefix = "!";
-		}
-	}
-
-	if (message.content.startsWith(myMention)) {
-		prefix = myMention + " ";
-	}
-	
-	if (prefix == "") {
-		return;
-	}
-
-
-	dlog("Command: " + message.content);
-
-	// Slice message
-	const args = message.content.toLowerCase().slice(prefix.length).trim().split(/ +/g); //Chop off the prefix, trim, split using spaces.
-	const command = args.shift().toLowerCase();
-
-
-	// Author's Bismo account
-	var AccountData = Bismo.getAccount(message.author.id);
+Client.on("message", message => {
 	try {
-		AccountData.hasPermission = AccountData.guilds[guildID].hasPermission;
-	}
-	catch (e) {}
-	if (AccountData===undefined) {
-		AccountData = {
-			hasPermission: function(perm) {
+		// The most import part, commands.
+		if(message.type === "PINS_ADD" && message.author.bot) message.delete(); // Remove pin notifications from the bot.
+
+		if (message.author.bot || message.author.system) return; // Do not process bot responses.
+		if (WaitForReply.indexOf(crypto.createHash('sha1').update(message.author.id + message.channel.id).digest('base64'))>-1) return; // Do not process reply responses. (this is already processed.)
+
+
+		// Emotes
+		if (message.content.startsWith("<:") && message.content.endsWith(">")) {
+			if (message.content.startsWith("<:dawson:")) {
+				message.delete().then(o_o=>{ message.channel.send("", {files: ["https://s.cnewb.co/dawson.png"]}) });
+			}
+
+			return;
+		}
+
+
+		function Reply(msg) {
+			message.channel.send(msg);
+		}
+
+
+		// Grab required data
+		var guildID = message.author.id;
+		if (message.guild!=undefined)
+			guildID = message.guild.id;
+
+		var myMention = "<@!" + Client.user.id + ">";
+		var guildData = Bismo.getGuild(guildID);
+
+
+		// Only listen to the guild's prefix or my mention
+		var prefix = "";
+		var inGuild;
+		if (guildData!=undefined) {
+			inGuild = true;
+			if (message.content.startsWith(guildData.prefix)) {
+				prefix = guildData.prefix;
+			}
+		} else {
+			inGuild = false;
+			if (message.content.startsWith("!")) {
+				prefix = "!";
+			}
+		}
+
+		if (message.content.startsWith(myMention)) {
+			prefix = myMention + " ";
+		}
+		
+		if (prefix == "") {
+			return;
+		}
+
+
+		dlog("Command: " + message.content);
+
+		// Slice message
+		const args = message.content.toLowerCase().slice(prefix.length).trim().split(/ +/g); //Chop off the prefix, trim, split using spaces.
+		const command = args.shift().toLowerCase();
+
+
+		// Author's Bismo account
+		var AccountData = Bismo.getAccount(message.author.id);
+		try {
+			AccountData.hasPermission = AccountData.guilds[guildID].hasPermission;
+		}
+		catch (e) {}
+		if (AccountData===undefined) {
+			AccountData = {
+				hasPermission: function(perm) {
+					return null;
+				}
+			}
+		} else if (AccountData.hasPermission === undefined) {
+			AccountData.hasPermission = function(perm) {
 				return null;
 			}
 		}
-	} else if (AccountData.hasPermission === undefined) {
-		AccountData.hasPermission = function(perm) {
-			return null;
+
+
+		// Can they interact with us?
+		if (AccountData.hasPermission("bismo.interact")===false) {
+			dlog("User " + message.author.username + " has no permission to interact with this bot.");
+			return;
 		}
-	}
 
+		message.prefix = prefix;
+		message.args = args;
+		message.reply = Reply; // Discord.js includes this now
+		message.BismoAccount = AccountData;
+		message.GAccount = guildData;
 
-	// Can they interact with us?
-	if (AccountData.hasPermission("bismo.interact")===false) {
-		dlog("User " + message.author.username + " has no permission to interact with this bot.");
-		return;
-	}
+		message.getReply = function(prompt, callback, options) {
+			if (options == undefined)
+				options = {};
 
-	message.prefix = prefix;
-	message.args = args;
-	message.reply = Reply; // Discord.js includes this now
-	message.BismoAccount = AccountData;
-	message.GAccount = guildData;
+			if (options.cancelCommand == undefined || options.cancelCommand == "")
+				options.cancelCommand == "!~cancel"
 
-	message.getReply = function(prompt, callback, options) {
-		message.reply(prompt);
-		Bismo.getUserReply(message.author.id, message.channel.id, callback, options);
-	}
+			message.reply(prompt + "\nTo cancel, type `" + options.cancelCommand + "`");
 
-	// Okay, we have everything.
-	// Emit an event.
+			Bismo.getUserReply(message.author.id, message.channel.id, callback, options);
+		}
 
-	Bismo.events.discord.emit('message', message);
+		// Okay, we have everything.
+		// Emit an event.
 
-	// Cycle through our command handlers
-	for (const [key, value] of Object.entries(Commands)) {
-		if (key == command) {
+		Bismo.events.discord.emit('message', message);
+
+		// Cycle through our command handlers
+		let cmd = Commands.get(command);
+		if (cmd != undefined) {
 			// This is our handler.
 
 			// Run basic checks
 			if (inGuild) {
-				if (value.usersOnly) {
-					break; // Command not allowed here.
-				} else if (value.whitelistGuilds != undefined) {
+				if (cmd.usersOnly) {
+					return; // Command not allowed here.
+				} else if (cmd.whitelistGuilds != undefined) {
 					var whitelisted = false;
-					for (var i = 0; i<value.whitelistGuilds.length; i++) {
-						if (value.whitelistGuilds[i] == guildID) {
+					for (var i = 0; i<cmd.whitelistGuilds.length; i++) {
+						if (cmd.whitelistGuilds[i] == guildID) {
 							whitelisted = true;
-							break;
+							return;
 						}
 					}
 					if (!whitelisted)
-						break; // Not allowed
+						return; // Not allowed
 
-				} else if (value.blacklistGuilds != undefined) {
+				} else if (cmd.blacklistGuilds != undefined) {
 					var blacklisted = false;
-					for (var i = 0; i<value.blacklistGuilds.length; i++) {
-						if (value.blacklistGuilds[i] == guildID) {
+					for (var i = 0; i<cmd.blacklistGuilds.length; i++) {
+						if (cmd.blacklistGuilds[i] == guildID) {
 							blacklisted = true;
-							break;
+							return;
 						}
 					}
 					if (blacklisted)
-						break; // Not allowed.
+						return; // Not allowed.
 				}
-			}  else if (value.guildRequired) {
+			}  else if (cmd.guildRequired) {
 				Reply("This command must be ran within a guild chat room!");
-				break;
+				return;
 			}
 
-			if (args[0] == "help" || (args[0] == undefined && value.noParams != true)) {
+			if (args[0] == "help" || (args[0] == undefined && cmd.noParams != true)) {
 				// Display the help message automatically
-				Reply("`" + command + "` - " + value.description + "\n" + value.helpMessage)
+				Reply("`" + command + "` - " + cmd.description + "\n" + cmd.helpMessage)
 			}
 			else {
-				value.handler(message);
+				try {
+					(function(){
+						cmd.handler(message);
+					})()//.catch((err)=>{
+					// 	console.error("[B] Command error, cmd: " + command + ".\nFull message: " + message.content);
+					// 	dlog("[B-e]Trace: " + err.stack);
+					// 	return true;
+					// }); // Run async
+				} catch (error) {
+					console.log(error);
+				}
+				
 			}
-			break;
+			return;
 		}
+	} catch (err) {
+		console.error("Command fault. Guild? " + ((message.guild!=undefined)? "true" : "false") + "Message: " + message.content);
+		dlog("[B-e] Trace: " + err.stack);
 	}
-
-	// Done.
 });
 
 
