@@ -987,17 +987,13 @@ Client.on("message", message => {
 				Reply("`" + command + "` - " + cmd.description + "\n" + cmd.helpMessage)
 			}
 			else {
-				try {
-					(function(){
-						cmd.handler(message);
-					})()//.catch((err)=>{
-					// 	console.error("[B] Command error, cmd: " + command + ".\nFull message: " + message.content);
-					// 	dlog("[B-e]Trace: " + err.stack);
-					// 	return true;
-					// }); // Run async
-				} catch (error) {
-					console.log(error);
-				}
+				(async function(){
+					cmd.handler(message);
+				})().catch((err)=>{
+					console.error("[B] Command error, cmd: " + command + ".\nFull message: " + message.content);
+					dlog("[B-e]Trace: " + err.stack);
+					return true;
+				}); // Run async
 				
 			}
 			return;
@@ -1073,6 +1069,8 @@ Client.on("ready", () => {
 				if (loaded>= GAccounts.length) {
 					loaded = true;
 					Client.user.setActivity(Config.Discord.activity);
+
+					Bismo.events.discord.emit('ready', Client);
 				}
 			});
 		}

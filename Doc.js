@@ -179,6 +179,9 @@
 
 		}
 
+		When loading a song (from being saved) we call `songObj = Plugin.setSong(songObj);`
+		It is up to the plugin to setup the song data as it should be (add the play, seek etc function)
+
 		Queuer reactions (responses):
 			🖖: Voice channel disconnected,
 				"Goodbye"
@@ -229,12 +232,10 @@
 				You can then disable shuffle and everything will go back to how it was before. (idea was to mimic Spotify shuffling)
 
 			- q save name: Save the current queue (as private)
-			- q save-p|save-private <name>: Save queue to author's private storage (as <name>)
-			- q save-g|save-guild <name>: Save queue to guild (as <name>)
-			- q save-gp|save-guildprivate <name>: Save queue to guild (available to the author only as <name)
+			- q save save-p|save-private <name>: Save queue to author's private storage (as <name>)
+			- q save save-g|save-guild <name>: Save queue to guild (as <name>)
 				If personal is specified as the save location then only the author can retrieve the queue. The queue can be retrieved in any guild
 				If guild is specified as the save location, then anyone in the guild can retrieve the queue, but ONLY in that guild.
-				If guild private is specified, then only the author can retrieve the queue but ONLY in that guild.
 				
 				The ID is a MD5 hash of the following information:
 					name: name of the saved queue... (all locations)
@@ -253,16 +254,20 @@
 					persistentData,
 				}
 			
-			-q load name: Load a song by name
+			-q (load | loadq | lq) name: Load a song by name
 				We first check the for a private guild queue of that name,
 				then personal queues,
 				and then finally public guild queues
 				guild (private) -> personal -> guild
 				This allows users to save custom queues per-guild by the same name as a private queue. (So making a custom version of the queue for a guild).
+
 		}
 
 
 		Groovy commands:
+			Need to add:
+				playlists
+
 			X-play [link | title]
 			X-play <file>
 			-join
@@ -270,7 +275,8 @@
 			X-next
 			X-back
 			X-clear: Queue
-			-jump: GOTO
+			x-jump: GOTO
+			-move
 			X-loop track|queue|off
 			-lyrics [query]
 			X-pause
@@ -287,7 +293,6 @@
 			-rewind
 			-search: Display search results
 			X-stop
-			-move
 
 
 			-bass boost [amount]
