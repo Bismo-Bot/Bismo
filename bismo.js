@@ -30,6 +30,9 @@ Error.stackTraceLimit = 3;
 
 
 const Bismo = {
+	version: build,
+	isWindows: isWin,
+	debugMode: debug,
 	
 } // This is the public API given to the plug-ins
 
@@ -657,7 +660,7 @@ for (var i = 0; i<dirs.length; i++) {
 						}
 					} catch (err) {
 						// error
-						console.error("[B - " + fName + " ] Error loading configuration file \"" + name  + "\".");
+						console.error("[B - " + fName + " ] Error loading configuration file \"config.json.");
 					}
 				}
 
