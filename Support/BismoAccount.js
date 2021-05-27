@@ -8,6 +8,13 @@
 
 // Bismo Account 'class'
 
+/*
+
+	This needs to be really, really light weight
+	We should only remember platform IDs, usernames and IDs.
+
+*/
+
 var Client;
 
 const BismoAccount = function(accData) {

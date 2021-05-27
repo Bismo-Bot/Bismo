@@ -319,7 +319,7 @@ Bismo.addAccount = function(userID, username, metaData) { // metaData is reserve
 	// Account 'created', now add it to the account list and save
 
 	dlog(username + " created an account! (" + userID + ")");
-	acct.updatePermissions(GAccounts);
+	acct.updatePermissions(ourGuilds);
 	Accounts.push(acct);
 	Bismo.saveAccounts();
 	return acct;
@@ -1056,6 +1056,9 @@ Client.on("ready", () => {
 
 		var loaded = 0;
 		for (var i = 0; i<GAccounts.length; i++) {
+			if (GAccounts[i]==null)
+				return;
+			
 			var gID = GAccounts[i].id;
 			Client.guilds.fetch(gID).then(gD => {
 				// Setup the guild

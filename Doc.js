@@ -8,6 +8,10 @@
 			A tool for gods
 
 	
+
+	/account
+
+
 	Web endpoints:
 		bismo.co/*
 			/API/<guildID>: Web API
