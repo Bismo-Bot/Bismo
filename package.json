@@ -17,7 +17,7 @@
       "resolved": "https://registry.npmjs.org/@discordjs/form-data/-/form-data-3.0.1.tgz",
       "version": "3.0.1"
     },
-    "@discordjs/opus": "github:discordjs/opus",
+    "@discordjs/opus": "^0.5.0",
     "abort-controller": {
       "integrity": "sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==",
       "requires": {
@@ -110,7 +110,7 @@
       "resolved": "https://registry.npmjs.org/destroy/-/destroy-1.0.4.tgz",
       "version": "1.0.4"
     },
-    "discord.js": "^12.5.1",
+    "discord.js": "^12.5.3",
     "ee-first": {
       "integrity": "sha1-WQxhFWsK4vTwJVcyoViyZrxWsh0=",
       "resolved": "https://registry.npmjs.org/ee-first/-/ee-first-1.1.1.tgz",
