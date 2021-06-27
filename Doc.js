@@ -9,40 +9,115 @@
 
 	
 
-	/account
+	Bismo API:
+		Bismo.botID: Discord ID of the bot
+
+		Bismo.events:
+
+		Bismo.SaveGuilds(): Save the guilds array
+		Bismo.SaveAccounts(): Save the Bismo accounts array
+		
+		Bismo.GetAccount(accountID): Gets the Bismo account this userID is tied to
+		Bismo.AccountExists(ID): Checks to see if the Bismo account exists for this ID
+		Bismo.AddAccount(userID, username, metaData): Creates and adds a new Bismo account
+		Bismo.RemoveAccount(userID): Remove a Bismo account
+
+		Bismo.GetGuildManager(ID): Gets the Guild object
+		Bismo.AddGuild(ID): Creates a new Guild account
+		Bismo.GetGuild(ID): Returns a Guild account
+		Bismo.RemoveGuild(ID): Removes the Guild account
+		Bismo.GetGuildUsers(ID): Returns an array of userIDs associated with a guild
+		Bismo.GetGuildBismoAccounts(ID): Returns an array of Bismo accounts associated with a guild
+		Bismo.IsGuildMemeber(userID, guildID): Checks to see if a Bismo account is in a particular guild
+		Bismo.IsDiscordGuildMemeber(userID, guildID): Same as above...
+		Bismo.GetGuildAdmins(guidID): Users that have the permission "discord.administrator"
+		Bismo.GetGuildAdminMentions(guildID): The above list of user's mentions
+		Bismo.GetGuildChannels(guildID[, type]): Returns an array of guild channels [of type]
+		Bismo.GetCurrentVoiceChannel(guildID, userID): Returns the voice channel ID that a user is in within a guild
+		Bismo.GetGuildChannelObject(guildID, channelID): Returns the channel object for a channelID in a guild.
 
 
-	Web endpoints:
-		bismo.co/*
-			/API/<guildID>: Web API
-			/guild/<guildID>: Web interface
+		bool Bismo.registerCommand(alias, handler, options): Allows a plugin to register a new command
+			Alias is the 'command' (I.E. mkdir, play, or whatever.)
+			Handler is the function we call whenever the command is called.
+			Options:
+				friendlyName: Friendly name of the command (defaults to provided alias)
+				description: A description of the command (defaults to "No description provided")
+				helpMessage: Message display in the bot's help command (/bismohelp) (defaults to description)
+				slashCommand: Registers the command as a slash command on Discord. (default: false)
+				slashCommandOptions: Slash commands allow you to specify 'options' (parameters). Use this to provide that information. You'll need to do everything manually. At some point this will be updated with a slash command builder API, but I'm lazy
+				chatCommand: Command is executed via chat (with the appropriate listener cue (!) prefixing the command) (default: true)
+
+				ephemeral: Slash commands only. If true only the author can see replies.
+
+				usersOnly: Command only allow to be called by users (default: true)
+				directChannels: Runs in direct message channels (not a guild) (default: false)
+				guildChannels: Runs in a guild channel (default: true)
+
+				whitelistGuilds: Only these guilds can run this command (array)
+				blacklistGuilds: These guild CAN NOT run this command (array)
+				hidden: Command not listed (default: false)
+				requireParams: Parameters are required to run this command. If true and no parameters are provided we display the helpMessage (default: false)
+			Returns whether or not the command successfully registered
+
+			When a command is executed we call the `handler` and pass this object as the first argument: {
+				.Reply: Method used to send a reply back to the user (chat commands: sends a message in the same channel, slash commands: sends a follow up message to the user)
+				.GetReply(prompt, callback[, options]): This is a wrapper for the Bismo.getUserReply() function. Allows you to collect a single response from the author in chat
+
+				.alias: Which command was executed (if you, for some reason, use the same handler for all your commands. Don't do that.)
+				.args: The parameters for the command (We automatically phrase this for you, in both chat and slash commands)
+
+				.author: (Discord) User object that executed the command
+				.authorID: User ID
+				?.guild: Discord guild object
+				?.guildID: Discord guild ID
+				.inGuild? Boolean: in guild?
+				?.bismoAccount: Bismo user account (special container for the user, holds user specific data)
+				?.guildAccount: Bismo guild account (special container for the guild, holds guild specific data)
+
+				.isInteraction? Boolean on whether or not this was an interaction (slash command / message interaction)
+				?.message: Message object (chat command)
+				?.interaction: Interaction object (slash command / message interaction)
+
+				DEPERCATED:
+					.GAccount: guildAccount
+					.BismoAccount: bismoAccount
+					.prefix: Moved to the message, not global.
+			}
 
 
+		Bismo.GetUserReply(userID, channelID, callback, options):
 
-	\Plugins:
+
+	/ Plugins
 		Stored in ./Plugins/<Plug-in Name>/
 		The file structure can be whatever you want, EXCEPT, you MUST have a "plugin.js" file present in the ROOT of your plugin folder
 		(I.E. ./Plugins/Steam/plugin.js)
-		The plugin.js file MUST export a table *.requests and a function *.main()
-			*.requests: An array that marks what data we must provide to your plugin (things such as our express instance)
-				express,
-				httpServer,
-				masterConfig
 
-				All plugins are given Bismo API access, and read/write abilities to their unique config file (Bismo.readConfig(), Bismo.writeConfig(JSON-contents, callback)).
+		If the plugin folder contains a file "disable" the plugin will be disabled and not load.
 
+		The plugin file can contain whatever you want, however, it MUST export a particular object.
+		The plugin MUST export an object that follows this formula: {
+			request: [] // Bismo has a few shielded API calls (for the internal workings) that control the bot itself, you can use this to request those calls.
+						// Such calls can include things like the express/http server, etc.
 
-			*.main(Requests): This is the main function that Bismo will call to start your plugin. This is the only thing Bismo will directly call. Use this to initialize your listeners and what not.
-				We will pass any requested APIs/Data through the 'Requests' parameter as a {}. Key names are the same as requested, plus we include the Bismo API (as 'Bismo')
+			main(): 	// This is the method Bismo will call as an entry point into your plugin.
 
-			*.manifest: A table containing various details about this plug
-				name,			:: The friendly name of the plugin
-				packageName,	:: Something similar to com.my.plugin
-				author,			:: Your name/screen name
-				date,			:: Optional date of development
-				version			:: The version of this plugin
+			manifest: {
+				name: 				// Friendly name for the plugin
+				packageName: 	 	// Unique name used within the Bot to reference the plugin (something like com.bismo.queuer)
+				author: 			// Your name
+				date: 				// Optional date of development
+				version:  			// Plugin version
+				targetSdkVersion: 	// What version of the Bismo API this targets (used to load legacy wrappers if possible)
+			}
 
-			*.api: A table including API calls for your plugin. These calls will be public via Bismo.getPluginAPI("<plugin package name>") or Bismo.getPlugin(<package name>);
+			api: 		// Your plugin's API object. These calls will be public via Bismo.GetPluginAPI("<plugin package name>") (This is how you link into the plugin)
+			events: 	// Plugin's event handler. This is where your plugin can fire off events
+		}
+
+		Plugins are loaded one by one the way they appear in the /Plugins folder.
+		With that said, some plugins may require other plugins to run. To get around this we suggest you link into the plugins you require *after* all plugins have been loaded.
 
 		Bismo API includes special functions for plugins:
 			Bismo.getPlugin(name[, mustBePackage]): Returns the plugin API for the plugin with <name>
@@ -72,6 +147,20 @@
 					hidden: Command is hidden from help/list commands
 					guildRequired: Only run within a guild
 					noParams: No additional parameters for this command.
+
+
+
+	/account
+
+
+	Web endpoints:
+		bismo.co/*
+			/API/<guildID>: Web API
+			/guild/<guildID>: Web interface
+
+
+
+		
 
 
 		On guild setup (as in guild account loading) we issue an event 'setup' on the main register for Bismo. In this event we include a single {} (name BismoPacket). This table includes:
