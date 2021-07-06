@@ -3,34 +3,78 @@
 	   / __ )(_)________ ___  ____ 
 	  / __  / / ___/ __ `__ \/ __ \
 	 / /_/ / (__  ) / / / / / /_/ /
-	/_____/_/____/_/ /_/ /_/\____/  Discord & Steam Bot
+	/_____/_/____/_/ /_/ /_/\____/  Discord Bot Framework
 	
-			A tool for gods
+			Yet Another JS/Discord Framework/Bot
 
 	
 
 	Bismo API:
+		### Private
+			lBismo.config: 			Local bot configuration
+			lBismo.SaveConfig(): 	Saves lBismo.config object to the config.json file
+
+			lBismo.guildAccounts: 	Array of Bismo guild account data (Bismo side)
+			lBismo.guildObjects: 	Object containing all the Discord guild objects
+
+			# deprecated # lBismo.userAccounts: 	Array of Bismo user accounts (Bismo side)
+
+			lBismo.waitForReply: 	Array of GetReply IDs (when using GetReply, Bismo saves an ID of the interaction so the messages handler can ignore the response)
+
+
+
+		###
+		...
+		
+			Bismo.GetUserReply(userID, channelID, callback[, options]): Wrapper for Bismo.WaitForUserMessage
+				UserID: User we are waiting for a response from
+				ChannelID: Which channel we are listening on
+				Callback: Function we call when a message comes in
+					We pass one argument, the message object, with an additional 'args' property (which is an array of the message split along spaces)
+
+				Options:
+					.cancelCommand: What the user must type in order to dismiss the listener (default: !~cancel)
+					.filter: Filter option passed to WaitForUserMessage (default: undefined)
+					.options: Generic options passed to WaitForUserMessage (default: undefined)
+
+			Bismo.WaitForUserMessage(userID, channelID, cancelCommand, callback, filter, options)
+				UserID: User we are waiting for a response from
+				ChannelID: Which channel we are listening on
+				cancelCommand: String of text that cancels the listener (default: !~cancel)
+				callback: Function we call when a message object comes in
+					We pass one argument, the message object, with an additional 'args' property (which is an array of the message split along spaces)
+
+				filter: Filter passed to the Discord.MessageCollector, (default: only accept messages from userID)
+				options: Options passed to the Discord.MessageCollector
+
+
+
+
+
 		Bismo.botID: Discord ID of the bot
 
 		Bismo.events:
+			yes
 
-		Bismo.SaveGuilds(): Save the guilds array
-		Bismo.SaveAccounts(): Save the Bismo accounts array
+		*Bismo.SaveGuilds(): Save the guilds array
+		*Bismo.SaveAccounts(): Save the Bismo accounts array
 		
-		Bismo.GetAccount(accountID): Gets the Bismo account this userID is tied to
-		Bismo.AccountExists(ID): Checks to see if the Bismo account exists for this ID
-		Bismo.AddAccount(userID, username, metaData): Creates and adds a new Bismo account
-		Bismo.RemoveAccount(userID): Remove a Bismo account
+		*Bismo.GetAccount(accountID): Gets the Bismo account this userID is tied to
+		*Bismo.AccountExists(ID): Checks to see if the Bismo account exists for this ID (checks if GetAccount is undefined...)
+		-Bismo.AddAccount(userID, username, metaData): Creates and adds a new Bismo account
+		*Bismo.RemoveAccount(userID): Remove a Bismo account
 
-		Bismo.GetGuildManager(ID): Gets the Guild object
-		Bismo.AddGuild(ID): Creates a new Guild account
-		Bismo.GetGuild(ID): Returns a Guild account
-		Bismo.RemoveGuild(ID): Removes the Guild account
-		Bismo.GetGuildUsers(ID): Returns an array of userIDs associated with a guild
+		*Bismo.GetDiscordGuildObject(ID): Gets the Discord Guild object
+		*Bismo.AddGuild(ID): Creates a new Guild account
+		*Bismo.GetBismoGuildObject(ID): Gets the Bismo Guild object (account)
+		*Bismo.RemoveGuild(ID): Removes the Guild account
+		*Bismo.GetGuildUsers(guildID): Returns all guild members in a guild
+		*Bismo.GetGuildUserIDs(guildID): Returns an array of userIDs associated with a guild
+
 		Bismo.GetGuildBismoAccounts(ID): Returns an array of Bismo accounts associated with a guild
-		Bismo.IsGuildMemeber(userID, guildID): Checks to see if a Bismo account is in a particular guild
+		Bismo.IsAccountGuildMemeber(userID, guildID): Checks to see if a Bismo account is in a particular guild
 		Bismo.IsDiscordGuildMemeber(userID, guildID): Same as above...
-		Bismo.GetGuildAdmins(guidID): Users that have the permission "discord.administrator"
+		Bismo.GetGuildAdminAccounts(guidID): Users that have the permission "discord.administrator"
 		Bismo.GetGuildAdminMentions(guildID): The above list of user's mentions
 		Bismo.GetGuildChannels(guildID[, type]): Returns an array of guild channels [of type]
 		Bismo.GetCurrentVoiceChannel(guildID, userID): Returns the voice channel ID that a user is in within a guild
@@ -45,10 +89,11 @@
 				description: A description of the command (defaults to "No description provided")
 				helpMessage: Message display in the bot's help command (/bismohelp) (defaults to description)
 				slashCommand: Registers the command as a slash command on Discord. (default: false)
-				slashCommandOptions: Slash commands allow you to specify 'options' (parameters). Use this to provide that information. You'll need to do everything manually. At some point this will be updated with a slash command builder API, but I'm lazy
+				slashCommandOptions: 	Slash commands allow you to specify 'options' (parameters). Use this to provide that information. You'll need to do everything manually.
+										At some point this will be updated with a slash command builder API, but I'm lazy
 				chatCommand: Command is executed via chat (with the appropriate listener cue (!) prefixing the command) (default: true)
 
-				ephemeral: Slash commands only. If true only the author can see replies.
+				ephemeral: Slash commands only. If true only the author can see replies. (default: true)
 
 				usersOnly: Command only allow to be called by users (default: true)
 				directChannels: Runs in direct message channels (not a guild) (default: false)
@@ -57,7 +102,7 @@
 				whitelistGuilds: Only these guilds can run this command (array)
 				blacklistGuilds: These guild CAN NOT run this command (array)
 				hidden: Command not listed (default: false)
-				requireParams: Parameters are required to run this command. If true and no parameters are provided we display the helpMessage (default: false)
+				requireParams: Parameters are required to run this command. If true and no parameters are provided we display the helpMessage (default: true)
 			Returns whether or not the command successfully registered
 
 			When a command is executed we call the `handler` and pass this object as the first argument: {
@@ -66,13 +111,13 @@
 
 				.alias: Which command was executed (if you, for some reason, use the same handler for all your commands. Don't do that.)
 				.args: The parameters for the command (We automatically phrase this for you, in both chat and slash commands)
+				.channel: Channel object the message was sent over
 
 				.author: (Discord) User object that executed the command
 				.authorID: User ID
 				?.guild: Discord guild object
 				?.guildID: Discord guild ID
 				.inGuild? Boolean: in guild?
-				?.bismoAccount: Bismo user account (special container for the user, holds user specific data)
 				?.guildAccount: Bismo guild account (special container for the guild, holds guild specific data)
 
 				.isInteraction? Boolean on whether or not this was an interaction (slash command / message interaction)
@@ -148,6 +193,13 @@
 					guildRequired: Only run within a guild
 					noParams: No additional parameters for this command.
 
+
+
+
+
+
+
+ === NOT UP-TO-DATE ===
 
 
 	/account
