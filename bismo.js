@@ -261,7 +261,7 @@ Bismo.SaveGuilds = function() {
 	// Clear runtime settings, convert to JSON, save file
 
 	var CleanGuilds = []; //SF.getCleanArray(lBismo.guildAccounts);
-	utilLog(lBismo.guildAccounts)
+	// utilLog(lBismo.guildAccounts)
 	for (var i = 0; i<lBismo.guildAccounts.length; i++) {
 		CleanGuilds[i] = lBismo.guildAccounts[i].GetSterial();
 	}
@@ -433,7 +433,7 @@ Bismo.RemoveGuild = function(ID) {
 				lBismo.guildAccounts.splice(i,1);
 			}
 
-	Bismo.saveGuilds();
+	Bismo.SaveGuilds();
 }
 
 
@@ -724,6 +724,57 @@ Bismo.registerCommand = function(name, handler, description, helpMessage, data) 
 
 
 
+/**
+ * Gets a plugin's API
+ * 
+ * @param {string} name - Name of the plugin (either friendly name or package name)
+ * @param {boolean} [mustBePackage = false] - Whether or not the name is the package name.
+ * @return {function} Requested plugin API
+ */
+Bismo.GetPlugin = function(name, mustBePackage) {
+	function getFromPackageName(name) {
+		for (const [key] of Object.keys(Plugins)) {
+			if (Plugins[key].manifest.packageName == name) {
+				return Plugins[key].api;
+			}
+		}
+
+		return undefined;
+	}
+
+	if (mustBePackage) {
+		return getFromPackageName(name);
+	
+	} else if (Plugins[name] != undefined) {
+		return Plugins[name].api;
+	
+	} else {
+		return getFromPackageName(name);
+	
+	}	
+}
+
+/**
+ * Returns a plugin's method
+ * 
+ * @param {string} name - Name of the plugin
+ * @param {string} method - Name of the method
+ * @param {boolean} [mustBePackage = false] - Whether or not the name is the package name.
+ * @return {function} Requested plugin method
+ */
+Bismo.GetPluginMethod = function(name, method, mustBePackage) {
+	let plugin = Bismo.GetPlugin(name, mustBePackage);
+
+	if (plugin != undefined) {
+		return plugin[method];
+	}
+}
+
+
+
+
+
+
 
 
 // Plug-ins
@@ -789,7 +840,7 @@ for (var i = 0; i<dirs.length; i++) {
 					}
 
 
-				requests.Bismo.getPlugin = function(name, mustBePackage) {
+				requests.Bismo.GetPlugin = function(name, mustBePackage) {
 					function getFromPackageName(name) {
 						for (const [key, value] of Object.entries(Plugins)) {
 							if (Plugins[key].manifest.packageName == name) {
@@ -813,7 +864,7 @@ for (var i = 0; i<dirs.length; i++) {
 					}	
 				}
 
-				requests.Bismo.readConfig = function(name) { // You can provide a special configuration name here.
+				requests.Bismo.ReadConfig = function(name) { // You can provide a special configuration name here.
 					try {
 						if (name!=undefined) {
 							return require(`./Plugins/${fName}/${name}.json`);
@@ -827,7 +878,7 @@ for (var i = 0; i<dirs.length; i++) {
 					}
 				}
 
-				requests.Bismo.writeConfig = function(data, callback, name) { // Same above with the name
+				requests.Bismo.WriteConfig = function(data, callback, name) { // Same above with the name
 					if (name!=undefined)
 						fs.writeFile(`./Plugins/${fName}/${name}.json`, JSON.stringify(data), 'utf8', o_O=>{ if (typeof callback === "function") callback(o_O); });
 					else
@@ -1151,7 +1202,7 @@ Client.on("message", message => {
 
 			message.channel.startTyping();
 
-			if (args[0] == "help" || (args[0] == undefined && cmd.noParams != true)) {
+			if (args[0] == "help" || (args[0] == undefined && cmd.requireParams == true)) {
 				// Display the help message automatically
 				commandData.Reply("`" + command + "` - " + cmd.description + "\n" + cmd.helpMessage)
 			}
@@ -1571,6 +1622,25 @@ httpServer.listen(Config.webPort, () => {
 	Bismo.log("[Web] Express server listening on port " + Config.webPort);
 });
 
+
+
+app.get("/", (req, res) => {
+	res.end(`<html>
+	<head>
+		<title>Project Bismo</title>
+	</head>
+	<body>
+		<h1>Landing page</h1>
+	</body>
+</html>`);
+});
+
+
+
+
+
+
+// Start the bot
 
 Bismo.RegisterCommand("version", message => {
 		let debugActive = "";
