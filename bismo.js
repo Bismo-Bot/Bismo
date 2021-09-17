@@ -65,8 +65,8 @@ if (!debug) {
 };
 
 const util = require('util');
-utilLog = function(obj) {
-	console.log(util.inspect(obj, {depth: 2}));
+utilLog = function(obj, depth) {
+	console.log(util.inspect(obj, {depth: (depth!=undefined)? depth : 2}));
 }
 
 
@@ -670,11 +670,13 @@ Bismo.RegisterCommand = function(alias, handler, options) {
 								name: alias,
 								description: options.description,
 								options: options.slashCommandOptions,
-							}});
+							}}).error(()=> {
+								console.log("[B] Failed to register slash command.");
+							});
 						} catch(e) {
 							// failed
 							console.log(e)
-							console.log("Failed to register slash command.")
+							console.log("[B] Failed to register slash command.");
 						}
 					}
 				} else {
@@ -682,7 +684,9 @@ Bismo.RegisterCommand = function(alias, handler, options) {
 						name: alias,
 						description: options.description,
 						options: options.slashCommandOptions,
-					}});
+					}}).error(()=> {
+						console.log("[B] Failed to register slash command.");
+					});;
 				}
 			} else {
 				awaitingRegister[awaitingRegister.length] = alias;
@@ -1111,7 +1115,7 @@ Client.on("message", message => {
 		dlog("Command: " + message.content);
 
 		// Slice message
-		const args = message.content.toLowerCase().slice(prefix.length).trim().split(/ +/g); //Chop off the prefix, trim, split using spaces.
+		const args = message.content.slice(prefix.length).trim().split(/ +/g); //Chop off the prefix, trim, split using spaces.
 		const command = args.shift().toLowerCase();
 
 
@@ -1175,7 +1179,7 @@ Client.on("message", message => {
 					for (var i = 0; i<cmd.whitelistGuilds.length; i++) {
 						if (cmd.whitelistGuilds[i] == guildID) {
 							whitelisted = true;
-							return;
+							break; // return != break
 						}
 					}
 					if (!whitelisted) {
@@ -1188,7 +1192,7 @@ Client.on("message", message => {
 					for (var i = 0; i<cmd.blacklistGuilds.length; i++) {
 						if (cmd.blacklistGuilds[i] == guildID) {
 							blacklisted = true;
-							return;
+							break;
 						}
 					}
 					if (blacklisted) {
@@ -1199,6 +1203,7 @@ Client.on("message", message => {
 				commandData.Reply("This command must be ran within a guild chat room!");
 				return;
 			}
+
 
 			message.channel.startTyping();
 
@@ -1213,8 +1218,9 @@ Client.on("message", message => {
 					console.error("[B] Command error, cmd: " + command + ".\nFull message: " + message.content);
 					dlog("[B-e] Trace: " + err.stack);
 					return true;
-				}).finally(()=>{
-					message.channel.stopTyping();
+				}).finally(async ()=>{
+					await new Promise(resolve => setTimeout(resolve, 500));
+					message.channel.stopTyping(true);
 				}); // Run async
 				
 			}
@@ -1325,11 +1331,11 @@ Client.ws.on('INTERACTION_CREATE', async interaction => { // async?
 		};
 
 		// Phrase the args.
-		var args = [];
+		commandData.args = [];
 		if (interaction.data.options) {
 			if (interaction.data.options.length >= 1) {
 				for (var i = 0; i<interaction.data.options.length; i++) {
-					args[i] = interaction.data.options[i].value;
+					commandData.args[i] = interaction.data.options[i].value;
 				}
 			}
 		}
@@ -1489,36 +1495,46 @@ Client.on("ready", () => {
 			let alias = awaitingRegister[i];
 			var cmd = Commands.get(alias);
 			if (cmd != undefined) {
-				if (cmd.whitelistGuilds != undefined) {
-					for (var i = 0; i<cmd.whitelistGuilds.length; i++) { // Only add the command to guilds that are allowed to use the command ;P
-						try {
-							Client.api.applications(Client.user.id).guilds(cmd.whitelistGuilds[i]).commands.post({data: {
+				try {
+					if (cmd.whitelistGuilds != undefined) {
+						for (var b = 0; b<cmd.whitelistGuilds.length; b++) { // Only add the command to guilds that are allowed to use the command ;P
+							// lol used i and not b, screwed the loader! hahaha whoops ....
+							Client.api.applications(Client.user.id).guilds(cmd.whitelistGuilds[b]).commands.post({data: {
 								name: alias,
 								description: cmd.description,
 								options: cmd.slashCommandOptions,
-							}});
-						} catch(e) {
-							// failed
-							console.log(e)
-							console.log("Failed to register slash command.");
+							}}).error(()=> {
+								console.log("[B] Failed to register `" + alias + "`");
+							});
+						}
+					} else {
+						if (debug) {
+							let keys = Object.keys(lBismo.guildObjects);
+							for (var o = 0; o<keys.length; o++) {
+								Client.api.applications(Client.user.id).guilds(keys[o]).commands.post({data: {
+									name: alias,
+									description: cmd.description,
+									options: cmd.slashCommandOptions,
+								}}).error(()=> {
+								console.log("[B] Failed to register `" + alias + "`");
+							});
+							}
+						} else {
+							Client.api.applications(Client.user.id).commands.post({data: {
+								name: alias,
+								description: cmd.description,
+								cmd: cmd.slashCommandOptions,
+							}}).error(()=> {
+								console.log("[B] Failed to register `" + alias + "`");
+							});;
 						}
 					}
-				} else {
-					let keys = Object.keys(lBismo.guildObjects);
-					for (var o = 0; o<keys.length; o++) {
-						Client.api.applications(Client.user.id).guilds(keys[o]).commands.post({data: {
-							name: alias,
-							description: cmd.description,
-							options: cmd.slashCommandOptions,
-						}});
-					}
-					// Client.api.applications(Client.user.id).commands.post({data: {
-					// 	name: alias,
-					// 	description: cmd.description,
-					// 	cmd: cmd.slashCommandOptions,
-					// }});
+					console.log("[B] Registered `" + alias + "`");
+				} catch(e) {
+					// failed
+					// console.log(e)
+					console.log("[B] Failed to register `" + alias + "`");
 				}
-				console.log("[B] Registered `" + alias + "`");
 			}
 		}
 

@@ -17,7 +17,7 @@
       "resolved": "https://registry.npmjs.org/@discordjs/form-data/-/form-data-3.0.1.tgz",
       "version": "3.0.1"
     },
-    "@discordjs/opus": "^0.5.0",
+    "@discordjs/opus": "^0.5.3",
     "abort-controller": {
       "integrity": "sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==",
       "requires": {
@@ -136,9 +136,9 @@
       "resolved": "https://registry.npmjs.org/event-target-shim/-/event-target-shim-5.0.1.tgz",
       "version": "5.0.1"
     },
-    "events": "^3.2.0",
+    "events": "^3.3.0",
     "express": "^4.17.1",
-    "express-session": "^1.17.1",
+    "express-session": "^1.17.2",
     "express-ws": "^4.0.0",
     "finalhandler": {
       "integrity": "sha512-aAWcW57uxVNrQZqFXjITpW3sIUQmHGG3qSb9mUah9MgMC4NeWhNOlNjXEYq3HjRAvL6arUviZGGJsBg6z0zsWA==",
@@ -365,11 +365,6 @@
       "resolved": "https://registry.npmjs.org/setprototypeof/-/setprototypeof-1.1.1.tgz",
       "version": "1.1.1"
     },
-    "statuses": {
-      "integrity": "sha1-Fhx9rBd2Wf2YEfQ3cfqZOBR4Yow=",
-      "resolved": "https://registry.npmjs.org/statuses/-/statuses-1.5.0.tgz",
-      "version": "1.5.0"
-    },
     "toidentifier": {
       "integrity": "sha512-yaOH/Pk/VEhBWWTlhI+qXxDFXlejDGcQipMlyxda9nthulaxLZUNcUqFxokp0vcYnvteJln5FNQDRrxj3YcbVw==",
       "resolved": "https://registry.npmjs.org/toidentifier/-/toidentifier-1.0.0.tgz",
@@ -418,7 +413,7 @@
       "resolved": "https://registry.npmjs.org/ws/-/ws-7.4.1.tgz",
       "version": "7.4.1"
     },
-    "yt-search": "^2.7.3",
-    "ytdl-core": "^4.5.0"
+    "yt-search": "^2.10.1",
+    "ytdl-core": "^4.9.1"
   }
 }
