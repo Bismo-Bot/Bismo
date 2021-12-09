@@ -229,12 +229,12 @@ There are some custom Bismo events, however. Here they are:
 
 
 ### Permissions
-Bismo allows for custom permissions to be set for users in a guild. This allows for guild administrators to more finally control the permissions users have when interacting with the bot.\
+Bismo allows for custom permissions to be set for users in a guild. This allows for guild administrators to more finely control the permissions users have when interacting with the bot.\
 Permissions follow a similar scheme to Minecraft's permission system in that permissions are individual strings, like `bismo.chatCommands` or `twilio.config.*`.
 
 Permissions can be three values, true, false or undefined. True and false are self explanatory, but undefined leaves the interpretation up to the caller (allowing a plugin to fallback to its default).
 
-Wildcards can be used to set all child permissions, and are the only way to alter child permissions. With that said, wildcard permissions do not override defined permissions.\\
+Wildcards can be used to set all child permissions, and are the only way to alter child permissions. With that said, wildcard permissions do not override defined permissions.\
 The best way to explain this is by example:\
 `cooldude42.awesomeplugin.interactions.* = true` will set everything after `.interactions` to be true.\
 However, if we set `cooldude42.awesomeplugin.interactions.onsundays = false` then when we query the permission `cooldude42.awesomeplugin.interactions.onsundays` we get the value `false` rather than the value set by the wildcard.\

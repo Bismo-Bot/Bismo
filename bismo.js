@@ -14,8 +14,9 @@
 
 // Use this to get all Guild IDs: var guilds = Client.guilds.cache.map(guild => guild.id);
 
+const Version = require('./Support/version');
+
 const debug = true;
-const build = "3.0.1[3]";
 
 const useDPAPI = false; // Toggles use of Window's Data Protection API. DPAPI is used to protect configuration files, account data and more.
 var isWin = process.platform === "win32";
@@ -32,7 +33,7 @@ Error.stackTraceLimit = 3;
 // This is the public API given to the plug-ins
 const Bismo = {}
 
-Bismo.version = build;
+Bismo.Version = new Version(0,3,0,(debug)?"debug":"release","3");;
 Bismo.isWindows = isWin;
 Bismo.debugMode = debug;
 
@@ -41,7 +42,6 @@ const lBismo = {
 	guildAccounts: [],
 	userAccounts: [],
 	waitForReply: [],
-	apiVersion: "2"
 } // This is our private API given to no-one.
 
 const ogLog = console.log;
@@ -86,9 +86,9 @@ utilLog = function(obj, depth) {
 
 Bismo.log("--== BISMO BOT ==--");
 if (!debug)
-	Bismo.log("{ \x1b[1m\x1b[47m\x1b[34mProduction" + endTerminalCode + ", build: " + build + " }"); // Production mode
+	Bismo.log("{ \x1b[1m\x1b[47m\x1b[34mProduction" + endTerminalCode + ", version: " + Bismo.Version.toString(true) + " }"); // Production mode
 else
-	Bismo.log("{ \x1b[1m\x1b[41m\x1b[33m**DEV MODE**" + endTerminalCode + ", build: " + build + " }"); // Developer (debug) mode
+	Bismo.log("{ \x1b[1m\x1b[41m\x1b[33m**DEV MODE**" + endTerminalCode + ", version: " + Bismo.Version.toString(true) + " }"); // Developer (debug) mode
 
 Bismo.log("] Running on \x1b[1m\x1b[34m" + process.platform);
 if (isWin) {
@@ -289,6 +289,7 @@ const { Routes } = require("discord-api-types/v9");
 
 
 const GuildAccount = require('./Support/GuildAccount');
+const ArgumentParser = require('./Support/ArgumentParser');
 // Setup
 
 // Load and decrypt the config file (if on Windows)
@@ -626,6 +627,7 @@ Bismo.GetGuildChannelObject = function(ID,channelId) {
  * @property {BismoCommandExecuteDataGetReply} GetReply This is a wrapper for the Bismo.getUserReply() function. Allows you to collect a single response from the author in chat
  * @property {string} alias Which command was executed
  * @property {string[]} args The parameters for the command (We automatically phrase this for you, in both chat and slash commands)
+ * @property {ArgumentParser} parser The more advance argument parser
  * @property {Discord.TextChannel} channel Channel object the message was sent over
  * @property {Discord.User} author User object that executed the command
  * @property {string} authorID User ID
@@ -1138,10 +1140,10 @@ for (var i = 0; i<dirs.length; i++) {
 				// 	name = plugin.manifest.name;
 
 				if (plugin.manifest.version == null)
-					plugin.manifest.version = 1;
-				if (plugin.manifest.targetAPIVersion != lBismo.apiVersion && plugin.manifest.targetAPIVersion != undefined)
-					Bismo.log(`[B] [31mLoading (outdated) plugin (${i + 1}/${dirs.length}) ${name}`); // Hey, we're loading! But very outdated!
-				else
+					plugin.manifest.version = "0.0.0";
+				// if (plugin.manifest.targetVersion != lBismo.apiVersion && plugin.manifest.targetAPIVersion != undefined)
+				// 	Bismo.log(`[B] [31mLoading (outdated) plugin (${i + 1}/${dirs.length}) ${name}`); // Hey, we're loading! But very outdated!
+				// else
 					Bismo.log(`[B] Loading plugin (${i + 1}/${dirs.length}) ${name}`); // Hey, we're loading!
 	
 				Plugins[name] = plugin;
@@ -1466,14 +1468,16 @@ Client.on("messageCreate", message => {
 		dlog("Command: " + message.content);
 
 		// Slice message
-		const args = message.content.slice(prefix.length).trim().split(/ +/g); //Chop off the prefix, trim, split using spaces.
-		const command = args.shift().toLowerCase();
+		let args = message.content.slice(prefix.length).trim().split(/ +/g); //Chop off the prefix, trim, split using spaces.
+		let command = args.shift().toLowerCase();
 
 
 		// Generate command packet
+		/** @type {BismoCommandExecuteData} */
 		var commandData = {
 			alias: command,
 			args: args,
+			parser: new ArgumentParser(args),
 			channel: message.channel,
 			author: message.author,
 			authorID: message.author.id,
@@ -1760,7 +1764,7 @@ Client.on("ready", async () => {
 
 	if (awaitingRegister.length>=1)
 		for (var i = 0; i<awaitingRegister.length; i++) {
-			// continue; // Registered for the day
+			continue; // Registered for the day
 			let alias = awaitingRegister[i];
 			var cmd = Commands.get(alias);
 			if (cmd != undefined) {
