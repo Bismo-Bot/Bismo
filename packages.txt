@@ -1,0 +1,9 @@
+discord.js
+
+@discordjs/rest - Slash commands
+discord-api-types
+
+@discordjs/voice - Requires node >16
+
+
+win-dpapi

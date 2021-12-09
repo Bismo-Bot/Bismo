@@ -1,6 +1,6 @@
 /*
 
-	    ____  _                    
+		____  _                    
 	   / __ )(_)________ ___  ____ 
 	  / __  / / ___/ __ `__ \/ __ \
 	 / /_/ / (__  ) / / / / / /_/ /
@@ -15,7 +15,7 @@
 // Use this to get all Guild IDs: var guilds = Client.guilds.cache.map(guild => guild.id);
 
 const debug = true;
-const build = "3.0.1[2]";
+const build = "3.0.1[3]";
 
 const useDPAPI = false; // Toggles use of Window's Data Protection API. DPAPI is used to protect configuration files, account data and more.
 var isWin = process.platform === "win32";
@@ -29,28 +29,39 @@ else
 Error.stackTraceLimit = 3;
 
 
-const Bismo = {
-	version: build,
-	isWindows: isWin,
-	debugMode: debug,
-	
-} // This is the public API given to the plug-ins
+// This is the public API given to the plug-ins
+const Bismo = {}
+
+Bismo.version = build;
+Bismo.isWindows = isWin;
+Bismo.debugMode = debug;
 
 const lBismo = {
 	config: {},
 	guildAccounts: [],
 	userAccounts: [],
 	waitForReply: [],
+	apiVersion: "2"
 } // This is our private API given to no-one.
 
 const ogLog = console.log;
+/***
+ * Logs to the console
+ * @param {Object} Message to log
+ */
 Bismo.log = function(msg) {
 	ogLog(msg + endTerminalCode);
 }
+
 console.log = Bismo.log;
+
 console.error = function(msg) {
 	Bismo.log(endTerminalCode + "\x1b[31m" + msg);
 }
+
+/**
+ * Debug logging
+ */
 function dlog(msg) {
 	if (debug)
 		Bismo.log("[Debug] " + msg);
@@ -64,26 +75,29 @@ if (!debug) {
 	console.clear();
 };
 
+// For debugging
 const util = require('util');
 utilLog = function(obj, depth) {
 	console.log(util.inspect(obj, {depth: (depth!=undefined)? depth : 2}));
 }
 
 
+// Begin
+
 Bismo.log("--== BISMO BOT ==--");
 if (!debug)
-	Bismo.log("{ \x1b[1m\x1b[47m\x1b[34mProduction" + endTerminalCode + ", build: " + build + " }");
+	Bismo.log("{ \x1b[1m\x1b[47m\x1b[34mProduction" + endTerminalCode + ", build: " + build + " }"); // Production mode
 else
-	Bismo.log("{ \x1b[1m\x1b[41m\x1b[33m**DEV MODE**" + endTerminalCode + ", build: " + build + " }");
+	Bismo.log("{ \x1b[1m\x1b[41m\x1b[33m**DEV MODE**" + endTerminalCode + ", build: " + build + " }"); // Developer (debug) mode
 
 Bismo.log("] Running on \x1b[1m\x1b[34m" + process.platform);
 if (isWin) {
 	if (useDPAPI)
-		Bismo.log("] DPAPI \x1b[1m\x1b[32mACTIVE" + endTerminalCode + ", file security enabled");
+		Bismo.log("] DPAPI \x1b[1m\x1b[32mACTIVE" + endTerminalCode + ", file security enabled"); // DPAPI active
 	else
-		Bismo.log("] DPAPI \x1b[1m\x1b[33mDEACTIVE" + endTerminalCode + ", file security disabled.");
+		Bismo.log("] DPAPI \x1b[1m\x1b[33mDEACTIVE" + endTerminalCode + ", file security disabled."); // DPAPI not-active (disabled)
 } else
-	Bismo.log("] DPAPI \x1b[1m\x1b[33mDEACTIVE" + endTerminalCode + ", file security disabled.");
+	Bismo.log("] DPAPI \x1b[1m\x1b[33mDEACTIVE" + endTerminalCode + ", file security disabled."); // DPAPI not-active (unsupported platform)
 
 // /^v/^\v/^\v/^\v/^\v^\
 console.log("\n");
@@ -91,7 +105,7 @@ console.log("\n");
 
 
 // This is our "error" handler :))))))))
-process.on('unhandledRejection', (error, p) => {
+process.on('unhandledRejection', (error) => {
   console.error('=== UNHANDLED REJECTION ===');
   dlog(error.stack);
 });
@@ -100,9 +114,9 @@ process.on('unhandledRejection', (error, p) => {
 
 // Event declares
 const EventEmitter = require('events');
-Bismo.events = {}
-Bismo.events.discord = new EventEmitter();	// Discord events
-Bismo.events.bot = new EventEmitter();		// Bot (system) events
+Bismo.Events = {}
+Bismo.Events.discord = new EventEmitter();  // Discord events
+Bismo.Events.bot = new EventEmitter();      // Bot (system) events
 
 
 
@@ -111,7 +125,8 @@ const SF = require('./Support/SupportFunctions.js');
 
 const fs = require('fs');
 const crypto = require('crypto');
-var dpapi = o_o => { return o_o; };
+var dpapi;
+dpapi = o_o => { return o_o; };
 if (isWin)
 	dpapi = require('win-dpapi'); // Used on Windows platforms to encrypt and decrypt the config, guild and account data files.
 /*
@@ -129,11 +144,45 @@ if (isWin)
 	Nothing is ever fully secured (or at least not with current technology), but this will just make it a pain-in-the-ass to decrypt.
 */
 
-const entropy = null; // The entropy used with DPAPI
+const entropy = null; // The entropy used with DPAPI, I'd recommend putting something here. must be null or an ArrayBuffer
+const DPAPIKeyScope = "CurrentUser"; // 
 
+/**
+ * Writes an {object} to file by first converting it to JSON. If DPAPI enabled, we save using DPAPI encryption
+ * @param {string} path - The path the JSON file will be saved to
+ * @param {object} contents - The contents to convert to JSON and save 
+ * @return {Promise} writeFile promise
+ */
+function writeJSONFile(path, contents) {
+	if (contents == undefined || path == undefined)
+		return;
+
+	return new Promise((resolve) => {
+		contents = JSON.stringify(contents);
+		
+		if (isWin && useDPAPI) {
+			let encryped = dpapi.protectData(Buffer.from(contents, 'utf-8'), entropy, DPAPIKeyScope).toString();
+			encryped = "DPAPI" + encryped;
+			fs.writeFile(path, contents, 'utf8', (data) => {
+				resolve(data);
+			});
+		} else {
+
+			fs.writeFile(path, contents, 'utf8', (data) => {
+				resolve(data);
+			});
+		}
+	});
+	
+}
+/**
+ * Synchronous wrapper for writeJSONFile
+ * @param {string} path - The path the JSON file will be saved to
+ * @param {object} contents - The contents to convert to JSON and save 
+ */
 function writeJSONFileSync(path, contents) {
 	if (!isWin || !useDPAPI) {
-		fs.writeFileSync(path, contents, 'utf8');
+		fs.writeFileSync(path, JSON.stringify(contents), 'utf8');
 	} else {
 		contents = JSON.stringify(contents);
 		var encrypted = dpapi.protectData(Buffer.from(contents, 'utf-8'), entropy, "CurrentUser").toString();
@@ -141,9 +190,49 @@ function writeJSONFileSync(path, contents) {
 		fs.writeFileSync(path, encrypted, 'utf8');
 	}
 }
+/**
+ * Reads a JSON from file and then parses it. If DPAPI enabled, we read using DPAPI decryption (and encrypt the file if it has not already been encrypted)
+ * @param {string} path - The path to the JSON file that will be read
+ * @return {JSON} JSON object of config data
+ */
+function readJSONFile(path) {
+	return new Promise((resolve, reject) => {
+		fs.readFile(path, (err, data) => {
+			if (err)
+				reject(err);
+			if (!isWin || !useDPAPI) {
+				data = JSON.parse(data);
+				resolve(data); // quick and dirty
+
+			} else {
+				// Is DPAPI protected?
+				if (data.substr(0, 5) == "DPAPI") {
+					// Yes
+					data = data.substr(5);
+					Bismo.log(data);
+					resolve(JSON.parse(dpapi.unprotectData(Buffer.from(data, 'utf-8'), entropy, DPAPIKeyScope))); // Note: you can also use the LocalMachine key rather than CurrentUser
+					// The null refers to the option entropy that we're ignoring
+				} else {
+					// No
+					data = JSON.parse(data);
+					if (useDPAPI) {
+						// Write the file, but encrypt it.
+						writeJSONFile(path, data);
+					}
+					resolve(data);
+				}
+			}
+		});
+	});
+}
+/**
+ * Synchronous wrapper for readJSONFile
+ * @param {string} path - The path to the JSON file that will be read
+ * @return {JSON} JSON object of config data
+ */
 function readJSONFileSync(path) {
 	if (!isWin || !useDPAPI)
-		return require(path); // quick and dirty
+		return JSON.parse(fs.readFileSync(path).toString()); // quick and dirty
 	else {
 		// Is DPAPI protected?
 		var contents = fs.readFileSync(path).toString();
@@ -151,7 +240,7 @@ function readJSONFileSync(path) {
 			// Yes
 			contents = contents.substr(5);
 			Bismo.log(contents);
-			return JSON.parse(dpapi.unprotectData(Buffer.from(contents, 'utf-8'), entropy, "CurrentUser")); // Note: you can also use the LocalMachine key rather than CurrentUser
+			return JSON.parse(dpapi.unprotectData(Buffer.from(contents, 'utf-8'), entropy, DPAPIKeyScope)); // Note: you can also use the LocalMachine key rather than CurrentUser
 			// The null refers to the option entropy that we're ignoring
 		} else {
 			// No
@@ -174,27 +263,33 @@ function readJSONFileSync(path) {
 // Discord.JS
 const Discord = require('discord.js');
 const Client = new Discord.Client({
-	// intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, 'GUILD_MEMBERS', 'DIRECT_MESSAGES', 'GUILD_MESSAGES_REACTIONS', 'GUILD_INVITES']
-	intents: [ Discord.Intents.ALL ]
+	intents: [ 	
+				Discord.Intents.FLAGS.GUILDS,
+				Discord.Intents.FLAGS.GUILD_MEMBERS,
+				//Discord.Intents.FLAGS.BANS,
+				//Discord.Intents.FLAGS.GUILD_EMOJIS_AND_STICKERS,
+				//Discord.Intents.FLAGS.INTEGRATIONS,
+				//Discord.Intents.FLAGS.GUILD_WEBHOOKS,
+				//Discord.Intents.FLAGS.GUILD_INVITES,
+				//Discord.Intents.FLAGS.GUILD_VOICE_STATES,
+				//Discord.Intents.FLAGS.GUILD_PRESENCES,
+				Discord.Intents.FLAGS.GUILD_MESSAGES,
+				Discord.Intents.FLAGS.GUILD_MESSAGE_REACTIONS,
+				//Discord.Intents.FLAGS.GUILD_MESSAGE_TYPING,
+				Discord.Intents.FLAGS.DIRECT_MESSAGES,
+				Discord.Intents.FLAGS.DIRECT_MESSAGE_REACTIONS,
+				//Discord.Intents.FLAGS.DIRECT_MESSAGE_TYPING
+			]
+
+	// intents: [ Discord.Intents.ALL ] // Removed in discord.js v13 because you shouldn't do that
 });
-
-// Express
-const http = require('http');
-const express = require('express');
-const session = require('express-session');
-const bodyParser = require("body-parser");
-
-const app = express();
-const httpServer = http.createServer(app);
-var expressWs = require('express-ws')(app, httpServer);
-app.use(bodyParser.urlencoded({ extended: false }));
+const { REST } = require("@discordjs/rest");
+const { Routes } = require("discord-api-types/v9");
 
 
 
 
-const BismoAccount = require('./Support/BismoAccount')(Client);
 const GuildAccount = require('./Support/GuildAccount')(Client);
-const BSF = require('./Support/SupportFunctions'); // lazy
 
 // Setup
 
@@ -213,6 +308,7 @@ var Commands = new Map();
 
 //### Begin Bismo public API
 
+// Deprecated.
 // Use this to wait for additional input from a user. When called, the user ($ID)'s next message will be sent straight to the callback function. We do not process the next message from user $ID (as a command or anything else)
 // To cancel input collection, the user just has to reply with the "cancel command".
 // Note, this command DOES NOT require the user to type the bot's prefix, (! or its mention) for us to process it. The user just types the cancel command in itsentirety.
@@ -235,7 +331,7 @@ Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter
 			lBismo.waitForReply.splice(i,1); // Remove user from WaitForReply list
 		}
 		if (msg.content === cancelCommand) {
-			channel.send("Canceled.")
+			channel.send({content: "Canceled."})
 			return;
 		} else {
 			msg.args = msg.content.trim().split(/ +/g); // split using spaces.
@@ -244,153 +340,110 @@ Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter
 	});
 }
 
-Bismo.GetUserReply = function(userID, channelID, callback, options) {
+/**
+ * GetUserReplyOptions for GetUserReply function
+ * @typedef {object} Bismo.GetUserReplyOptions
+ * @property {string} cancelCommand - What a user must type in order to dismiss and cleanup the listener.
+ * @property {any} filter - The filter passed to the Discord.MessageCollector, default to m=>m.author.id === id (only accept messages with the user's ID)
+ * @property {any} options - Further options passed to the Discord.MessageCollector
+ */
+
+/**
+ * Grab a user's input (process in-line a user reply). Next message from a user in channelID is ignored except by your callback.
+ * The returned promise will either resolve with the user's unmodified message or reject if they canceled (using the cancel command, !~cancel).
+ * Use this to wait for additional input from a user. When called, the user's next message will be resolved and processed by the calling code without any altering.
+ * *We do split the user's message by white space into an array called 'args'
+ * To prevent command processing from this user we calculate the SHA1 of the user's ID and channel's ID concatenated together and then add that to the waitForReply array.
+ * When a normal message comes in, we always calculate this same SHA1 and check to see if anything lives in waitForReply, if something does we do not process the command.
+ * Since we do not process the message in any way, the bot's prefix is NOT required. The entirety of the message will be processed by your callback function.
+ * 
+ * @param {string} userID - Discord user ID of the person you're waiting for a reply from
+ * @param {string} channelID - Discord channel ID you're waiting for a reply in
+ * @param {Bismo.GetUserReplyOptions} options - Additional options passed to the Discord.MessageCollector
+ * 
+ * @return {Promise<Discord.Message, Error>} Promise object that represents the user's reply.
+ */
+Bismo.GetUserReply = function(userID, channelID, options) {
 	if (options == undefined)
 		options = {};
 
 	if (options.cancelCommand == undefined || options.cancelCommand == "")
 		options.cancelCommand == "!~cancel"
 
-	Bismo.WaitForUserMessage(userID, channelID, options.cancelCommand, callback || options.callback, options.filter, options.options);
+
+	return new Promise((resolve, reject) => {
+		let wFRID = crypto.createHash('sha1').update(userID + channel).digest('base64');
+		lBismo.waitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
+
+		if (options.filter ==  undefined)
+			options.filter =  m => m.author.id === userID; // Sets our filter to only accept messages from the user with $ID
+
+		let collector = new Discord.MessageCollector(channelID, options.filter, options.options);
+		collector.on('collect', msg => { 
+			collector.stop(); // Stop collection
+
+			let i = lBismo.waitForReply.indexOf(wFRID);
+			if (i>-1)
+				lBismo.waitForReply.splice(i,1); // Remove user from WaitForReply list
+			
+			if (msg.content === cancelCommand) {
+				channel.send({content: "Canceled."})
+				reject();
+
+			} else {
+				msg.args = msg.content.trim().split(/ +/g); // I lied we at least split things up into an array
+				resolve(msg); // Resolve
+			}
+		});
+	});
+}
+
+/**
+ * Synchronous wrapper for Bismo.GetUserReply(userID, channelID, options)
+ * @param {string} userID - Discord user ID of the person you're waiting for a reply from
+ * @param {string} channelID - Discord channel ID you're waiting for a reply in
+ * @param {Bismo.GetUserReplyOptions} options - Additional options passed to the Discord.MessageCollector
+ * @return {Discord.Message} message - The message object the user sent
+ */
+Bismo.GetUserReplySync = async function(userID, channelID, options) {
+	return await Bismo.GetUserReply(userID, channelID, options);
 }
 
 
 
-
+/**
+ * Saves the current guild configurations to the Guilds JSON file.
+ * Clear runtime settings, convert to JSON, save file.
+ */
 Bismo.SaveGuilds = function() {
 	// Clear runtime settings, convert to JSON, save file
-
-	var CleanGuilds = []; //SF.getCleanArray(lBismo.guildAccounts);
-	// utilLog(lBismo.guildAccounts)
+	var CleanGuilds = [];
 	for (var i = 0; i<lBismo.guildAccounts.length; i++) {
-		CleanGuilds[i] = lBismo.guildAccounts[i].GetSterial();
+		CleanGuilds[i] = lBismo.guildAccounts[i].GetSterile();
 	}
-
-	// Bismo.log(GAccounts)
-	//path, contents
 
 	writeJSONFileSync('./Data/Guilds.json', JSON.stringify(CleanGuilds));
 	dlog("Guild data saved.");
 }
 
-// Bismo.SaveAccounts = function() {
-// 	var CleanAccounts = [];
-// 	for (var i = 0; i<lBismo.userAccounts.length; i++) {
-// 		CleanAccounts.push(lBismo.userAccounts[i].getSterial());
-// 	}
-
-// 	writeJSONFileSync('./Data/Accounts.json', JSON.stringify(CleanAccounts));
-// 	dlog("Account data saved.");
-// }
-
-
-
-
-// // Returns the Bismo account for this ID (typically the Discord user ID)
-// // Can be any linked account IDs
-// // Returns undefined if no account was found
-// Bismo.GetAccount = function(ID) {
-// 	var acc = undefined;
-// 	for (var i = 0; i<lBismo.userAccounts.length; i++) {
-// 		// for each account,
-// 		if (lBismo.userAccounts[i] != null) {
-// 			// if it actually exists...
-// 			if (lBismo.userAccounts[i].accountName == ID) // if the account name is the ID... (discord ID==discord ID) (fast!ish)
-// 				return lBismo.userAccounts[i]; // return this account
-// 			if (lBismo.userAccounts[i].linkedAccount!=null) // if it has linked accounts
-// 				for (var o = 0; o<lBismo.userAccounts[i].linkedAccounts.length; o++) // for each linked account (ungodly slow!)
-// 					if (lBismo.userAccounts[i].linkedAccounts[o] != null) // if that actually exists...
-// 						if (lBismo.userAccounts[i].linkedAccounts[o].id == ID) // if the account ids equal
-// 							return lBismo.userAccounts[i]; // return this account
-// 		}
-// 	}
-// 	return acc; // lol undefined?
-// }
-
-// // Checks to see if the Bismo account exists for this ID (typically the Discord user ID)
-// // Returns false if Bismo.getAccount returns undefined (I.E. no account)
-// Bismo.AccountExists = function(ID) {
-// 	return (Bismo.getAccount(ID)!=undefined);
-// }
-
-// // Adds a Bismo account (ID is the account ID, typically the Discord user ID)
-// Bismo.AddAccount = function(userID, username, metaData) { // metaData is reserved for additional data
-// 	if (Bismo.accountExists(userID))
-// 		return;
-
-
-// 	var ourGuilds = []
-// 	// go through all our guilds and check if the user is in them.
-// 	// note: for some dumbass reason, either the user has to interact with the bot in these servers OR the bot has to interact with these servers before the members list is accurate..
-// 	// jesus I hate this thing more and more as the days go on
-// 	var guilds = Client.guilds.cache;
-// 	for (var i = 0; i<guilds.length; i++)
-// 	{
-// 		var member = guilds[i].members.get(userID)
-// 		if (member!=null) {
-// 			if (member.id == userID)
-// 			{
-// 				// We have this guild together
-// 				ourGuilds.push({ ID: guilds[i].id, type: 0 });
-// 			}
-// 		}
-// 	}
-
-// 	var acct = new BismoAccount({
-// 		accountName: userID,
-// 		initalLink: {
-// 			accountID: userID,
-// 			username: username
-// 		},
-// 		guilds: ourGuilds
-// 	});
-
-// 	// Account 'created', now add it to the account list and save
-
-// 	dlog(username + " created an account! (" + userID + ")");
-// 	acct.updatePermissions(ourGuilds); // uhhhhh
-// 	lBismo.userAccounts.push(acct);
-// 	Bismo.SaveAccounts();
-// 	return acct;
-// }
-
-// Bismo.RemoveAccount = function(ID) {
-// 	for (var i = 0; i<lBismo.userAccounts.length; i++)
-// 		if (lBismo.userAccounts[i] != null) {
-// 			if (lBismo.userAccounts[i].accountName == ID)
-// 			{
-// 				dlog("Deleting account " + lBismo.userAccounts[i].accountName);
-// 				lBismo.userAccounts.splice(i,1);
-// 				Bismo.SaveAccounts();
-// 				return true;
-// 			}
-// 			if (lBismo.userAccounts[i].linkedAccount!=null)
-// 				for (var o = 0; o<lBismo.userAccounts[i].linkedAccounts.length; o++)
-// 					if (lBismo.userAccounts[i].linkedAccounts[o] != null)
-// 						if (lBismo.userAccounts[i].linkedAccounts[o].id == ID)
-// 						{
-// 							dlog("Deleting account " + lBismo.userAccounts[i].accountName);
-// 							lBismo.userAccounts.splice(i,1);
-// 							Bismo.SaveAccounts();
-// 							return true;
-// 						}
-// 	}
-// 	return false;
-// }
-
 // ================================
 
-// Get the Discord GuildManager
+/**
+ * Returns a Discord Guild object for the guild with the id ID.
+ * @param {string} ID - ID of the guild to get
+ * @return {Discord.Guild} guild - Guild object
+ */
 Bismo.GetDiscordGuildObject = function(ID) {
-	var a = lBismo.guildObjects[ID];
-	return a;
-
-	// Client.guilds.fetch(ID)
-	// 	.then(data => { return data })
-	// 	.catch(console.error);
+	return lBismo.guildObjects[ID];
 }
 
-// Adds a GuildAccount
+
+/**
+ * Creates a new Guild account
+ * @param {string} ID - The guild ID you're adding
+ * @param {Bismo.GuildAccountConstructorData} data - The data passed to the GuildAccount constructor (the guild's data)
+ * @return {Bismo.GuildAccount | undefined} Either returns the guild account or undefined if no such guild with that ID exists.
+ */
 Bismo.AddGuild = function(ID, data) {
 	// Check if this guild account exists
 	for(var i = 0; i<lBismo.guildAccounts.length; i++)
@@ -406,18 +459,20 @@ Bismo.AddGuild = function(ID, data) {
 
 	// Bismo.log(data);
 	if (data.name == undefined) // this guild doesn't actually exist.
-		return undefined;
+		return undefined;       
 
-		
-
-	var gData = new GuildAccount(data);
+	let gData = new GuildAccount(data);
 
 	lBismo.guildAccounts.push(gData);
 	Bismo.SaveGuilds();
 	return gData;
 }
 
-// Returns a GuildAccount
+/**
+ * Gets the Bismo Guild object (account)
+ * @prama {string} ID - Guild ID to grab
+ * @return {Bismo.GuildAccount} GuildAccount object
+ */
 Bismo.GetBismoGuildObject = function(ID) {
 	for (var i = 0; i<lBismo.guildAccounts.length; i++)
 		if (lBismo.guildAccounts[i] != null)
@@ -425,22 +480,34 @@ Bismo.GetBismoGuildObject = function(ID) {
 				return lBismo.guildAccounts[i];
 }
 
+/**
+ * Removes a guild with ID from our guild account database (destroy the GuildAccount)
+ * @prama {string} ID - Guild ID to remove
+ */
 Bismo.RemoveGuild = function(ID) {
 	for (var i = 0; i<lBismo.guildAccounts.length; i++)
 		if (lBismo.guildAccounts[i] != null)
 			if (lBismo.guildAccounts[i].id == ID) {
-				// lBismo.guildAccounts[i] = undefined;
+				delete lBismo.guildAccounts[i];
 				lBismo.guildAccounts.splice(i,1);
 			}
 
 	Bismo.SaveGuilds();
 }
 
-
-// Returns a list of Discord userIDs from a guild
+/**
+ * Get all guild member objects
+ * @prama {string} guildID - Guild to get members from
+ * @return {Discord.GuildMemberManager} All guild members
+ */
 Bismo.GetGuildUsers = async function(guildID) {
 	return await Bismo.GetDiscordGuildObject(guildID).members.fetch();
 }
+/**
+ * Get an array of user IDs within a guild
+ * @param {string} guildID - Guild to get user information from
+ * @return {string[]} Array of user IDs inside a guild
+ */
 Bismo.GetGuildUserIDs = function(guildID) {
 	var users = Bismo.GetGuildUsers(guildID);
 
@@ -453,30 +520,14 @@ Bismo.GetGuildUserIDs = function(guildID) {
 	return cleanUsers;
 }
 
-// Returns an array of Bismo Accounts for the users in a guild
-// Bismo.GetGuildBismoAccounts = function(guildID) {
-// 	var users = Bismo.GetGuildUserIDs(guildID);
-// 	var accs = [];
-// 	for (var i = 0; i<users.length; i++)
-// 		if (users[i]!=null)
-// 			accs.push(Bismo.GetAccount(users[i]));
 
-// 	return BSF.getCleanArray(accs);
-// }
 
-// Checks to see if a Bismo account (linked to ID) is in a particular guild
-// Bismo.IsAccountGuildMember = function(ID, guildID) {
-// 	var account = Bismo.GetAccount(ID);
-// 	if (account != undefined) {
-// 		for (var i = 0; i<account.guilds.length; i++) {
-// 			if (account.guilds[i].id == guildID)
-// 				return true;
-// 		}
-// 	}
-
-// 	return false;
-// }
-// If this Discord ID is in a guild
+/**
+ * Check to see if a userID is apart of a guild
+ * @param {string} ID - UserID to check
+ * @param {string} guildID - In this guild
+ * @return {boolean} Discord user is apart of a guild
+ */
 Bismo.IsDiscordGuildMember = function(ID, guildID) {
 	var members = Bismo.GetGuildUserIDs(guildID);
 	for (var i = 0; i<members.length; i++) {
@@ -487,48 +538,15 @@ Bismo.IsDiscordGuildMember = function(ID, guildID) {
 	return false;
 }
 
-// Returns an array of Bismo accounts that are considered Admins for a particular guild
-Bismo.GetGuildAdminAccounts = function(ID) {
-	// get all guild members for ID,
-	// check permissions
-
-	var accts = Bismo.GetGuildBismoAccounts(ID);
-	var admins = [];
-	for (var i = 0; i<accts.length; i++) {
-		if (accts[i].hasPermission("discord.administrator")) {
-			admins.push(accts[i]);
-		}
-	}
-
-	return admins;
-}
-
-// Returns a string of mentions for guild admins
-Bismo.GetGuildAdminMentions = function(ID) {
-	var accts = Bismo.GetGuildBismoAccounts(ID);
-	var admins = [];
-	for (var i = 0; i<accts.length; i++) {
-		if (accts[i].hasPermission("discord.administrator.mention")) { // Only allow accounts with discord.administrator.mention
-			for (var b = 0; b<accts[i].linkedAccounts.length; b++) {
-				if (Bismo.IsDiscordGuildMember(accts[i].linkedAccounts[b].id))
-					admins.push(accts[i].linkedAccounts[b].id); // This ID is in the guild
-			}
-			
-		}
-	}
-	
-	// we got the admin accounts, now formulate the mentions
-	var mention = "";
-	for (var i = 0; i<admins.length; i++) {
-		mention = mention + "<@" + admins[i] + "> ";
-	}
-	return mention;
-}
-
-// Returns all the channels in a guild (optional: if they are X type)
+/**
+ * Get all channels in a particular guild
+ * @param {string} ID - Guild to check
+ * @param {string} [type] - Only return these types of channels
+ * @return {Discord.Channel[]|Discord.VoiceChannel[]|Discord.TextChannel[]|Discord.StoreChannel[]|Discord.NewsChannel[]|array} Channels 
+ */
 Bismo.GetGuildChannels = function(ID, type) {
 
-	var channels = Bismo.GetDiscordGuildObject(ID).channels.cache.array();
+	var channels = [...Bismo.GetDiscordGuildObject(ID).channels.cache.values()];
 	var neededChannels = [];
 
 	for (var i = 0; i<channels.length; i++)
@@ -543,12 +561,18 @@ Bismo.GetGuildChannels = function(ID, type) {
 }
 
 // Return the voice channel ID that user $userID is in on the guild $guildID
+/**
+ * Get the current voice channel a user is in within a guild
+ * @param {string} guildID - The guild to check
+ * @param {string} userID - The user to check
+ * @return {Discord.VoiceChannel|undefined} - Voice channel that user is in
+ */
 Bismo.GetCurrentVoiceChannel = function(guildID, userID) {
 	voiceChannels = Bismo.GetGuildChannels(guildID, "voice");
 
 	for (var i = 0; i<voiceChannels.length; i++)
-	{	
-		var members = voiceChannels[i].members.array();
+	{   
+		var members = [...voiceChannels[i].members.values()];
 		for (var m = 0; m<members.length; m++)
 			if (members[m].id == userID)
 				return voiceChannels[i].id;
@@ -558,11 +582,17 @@ Bismo.GetCurrentVoiceChannel = function(guildID, userID) {
 }
 
 // Return the channel object for $channelID in guild $ID
+/**
+ * Get the channel object of a channel in a guild
+ * @param {string} ID - Channel is in this guild
+ * @param {string} channelID - The channel ID to get
+ * @return {Discord.TextChannel|Discord.VoiceChannel|Discord.NewsChannel|Discord.StoreChannel} Channel object
+ */
 Bismo.GetGuildChannelObject = function(ID,channelID) {
 	var g = Bismo.GetDiscordGuildObject(ID);
 	if(g.channels != undefined) {
 		// utilLog(g.channels)
-		var channels = g.channels.cache.array()
+		var channels = [...g.channels.cache.values()]
 		// var channel = g.channels.get(channelID);
 		// return channel;
 
@@ -582,12 +612,83 @@ Bismo.GetGuildChannelObject = function(ID,channelID) {
 
 // ** Bot internal? API
 
+
+
+
+/**
+ * @typedef {Bismo.GetReply} Bismo.CommandExecuteDataGetReply
+ * 
+ * @param {string} prompt - The prompt to give users (We append the message `Type <options.cancelCommand> to cancel.`)
+ * @param {Bismo.GetUserReplyOptions} options - Options passed to the GetUserReply() function
+ */
+/**
+ * @typedef {function} Reply
+ * @param {string} msg - Message to send
+ * 
+ */
+
+/**
+ * @typedef {object} Bismo.CommandExecuteData
+ * 
+ * @property {Reply} Reply - Method used to send a reply back to the user (chat commands: sends a message in the same channel, slash commands: sends a follow up message to the user)
+ * @property {Bismo.CommandExecuteDataGetReply} GetReply - This is a wrapper for the Bismo.getUserReply() function. Allows you to collect a single response from the author in chat
+ * @property {string} alias - Which command was executed
+ * @property {string[]} args - The parameters for the command (We automatically phrase this for you, in both chat and slash commands)
+ * @property {Discord.TextChannel} channel - Channel object the message was sent over
+ * @property {Discord.User} author - User object that executed the command
+ * @property {string} authorID - User ID
+ * @property {Discord.Guild} guild - Discord guild object
+ * @property {string} guildID - Discord guild ID
+ * @property {boolean} inGuild - Command executed inside a guild?
+ * @property {Bismo.GuildAccount} guildAccount - Bismo guild account (special container for the guild, holds guild specific data)
+ * @property {boolean} isInteraction - Whether or not this was an interaction (slash command / message interaction)
+ * @property {Discord.Message} [message] - Message object (chat command)
+ * @property {Discord.Interaction} [interaction] - Interaction object (slash command / message interaction)
+ * 
+ */
+
+/**
+ * @typedef {object} Bismo.CommandOptions
+ * 
+ * @property {string} friendlyName - Friendly name of the command (defaults to provided alias)
+ * @property {string} description - A description of the command (defaults to "No description provided")
+ * @property {string} [helpMessage] - Message display in the bot's help command (/bismohelp) (defaults to description)
+ * 
+ * @property {boolean} [slashCommand = false] - Registers the command as a slash command on Discord. (default: false)
+ * @property {boolean} [chatCommand = true] - Command is executed via chat (with the appropriate listener cue (!) prefixing the command) (default: true)
+ *
+ * @property {JSON[]} [slashCommandOptions = []] - Slash commands allow you to specify 'options' (parameters). Use this to provide that information. You'll need to do everything manually.
+ * @property {string} [ephemeral = true] - Slash commands only. If true only the author can see replies. (default: true)
+ * 
+ * @property {boolean} [usersOnly = true] - Command only allow to be called by users (and not bots) (default: true)
+ * @property {boolean} [directChannels = false] - Runs in direct message channels (not a guild) (default: false)
+ * @property {boolean} [guildChannels = true] - Runs in a guild channel (default: true)
+ * 
+ * @property {string[]} [whitelistGuilds = undefined] - Only these guilds can run this command (array)
+ * @property {string[]} [blacklistGuilds = undefined] - These guild CAN NOT run this command (array)
+ * @property {string} [hidden = false] - Command not listed (default: false)
+ * 
+ * @property {boolean} [requireParams = true] - Parameters are required to run this command. If true and no parameters are provided we display the helpMessage (default: true). Note this has no effect on slash commands.
+ * 
+ * 
+ */
+
 // Registers a command
 // we have to wait until after the bot logins to register slash commands!
 awaitingRegister = []; // This array will contain the commands that need to be registered
+/**
+ * Register a command
+ * A command is either text based or a slash command. Text based commands are activated using a prefix or the bot's mention.
+ * Upon a successful command execution, we pass a Bismo.CommandExecuteData object as the first argument to the handler function.
+ * 
+ * @param {string} alias - Command name, what users my type to execute your command
+ * @param {function} handler - The function called whenever the command gets executed
+ * @param {Bismo.CommandOptions} options - Command options
+ * 
+ * 
+ */
 Bismo.RegisterCommand = function(alias, handler, options) {
 	// https://discord.com/developers/docs/interactions/slash-commands
-	// https://gist.github.com/advaith1/287e69c3347ef5165c0dbde00aa305d2 # making the API calls with Discord.JS
 
 	if (options == undefined)
 		options = {};
@@ -666,27 +767,37 @@ Bismo.RegisterCommand = function(alias, handler, options) {
 				if (options.whitelistGuilds) {
 					for (var i = 0; i<options.whitelistGuilds.length; i++) { // Only add the command to guilds that are allowed to use the command ;P
 						try {
-							Client.api.applications(Client.user.id).guilds(options.whitelistGuilds[i]).commands.post({data: {
+							// Client.api.applications(Client.user.id).guilds(options.whitelistGuilds[i]).commands.post({data: {
+							// 	name: alias,
+							// 	description: options.description,
+							// 	options: options.slashCommandOptions,
+							// }})
+							Discord.Rest.post(Routes.applicationGuildCommands(Client.user.id, options.whitelistGuilds[i]), { body: {
 								name: alias,
 								description: options.description,
 								options: options.slashCommandOptions,
-							}}).error(()=> {
-								console.log("[B] Failed to register slash command.");
-							});
+							} });
 						} catch(e) {
 							// failed
-							console.log(e)
-							console.log("[B] Failed to register slash command.");
+							// console.log(e)
+							console.error("[B] Failed to register slash command.");
 						}
 					}
 				} else {
-					Client.api.applications(Client.user.id).commands.post({data: {
+					Discord.Rest.post(Routes.applicationCommands(Client.user.id), { body: {
 						name: alias,
 						description: options.description,
 						options: options.slashCommandOptions,
-					}}).error(()=> {
-						console.log("[B] Failed to register slash command.");
-					});;
+					} } );
+					
+					// d.js v12
+					// Client.api.applications(Client.user.id).commands.post({data: {
+					// 	name: alias,
+					// 	description: options.description,
+					// 	options: options.slashCommandOptions,
+					// }}).error(()=> {
+					// 	console.log("[B] Failed to register slash command.");
+					// });;
 				}
 			} else {
 				awaitingRegister[awaitingRegister.length] = alias;
@@ -697,31 +808,6 @@ Bismo.RegisterCommand = function(alias, handler, options) {
 
 	} else {
 		Bismo.log(`[91mFailed to register command "${alias}"! It was already registered.[0m`);
-		return false;
-	}
-}
-
-Bismo.registerCommand = function(name, handler, description, helpMessage, data) {
-	if (data == undefined)
-		data = {};
-	if (Commands.get(name) == undefined) {
-		Bismo.log(`[32mNew command registered: "!${name}"[0m`);
-		Commands.set(name, {
-			handler: handler,
-			description: description,
-			helpMessage: helpMessage,
-			usersOnly: data.usersOnly,
-			chatCommand: true,
-			slashCommand: false,
-			whitelistGuilds: data.whitelistGuilds,
-			blacklistGuilds: data.blacklistGuilds,
-			hidden: data.hidden,
-			guildRequired: data.guildRequired,
-			noParams: data.noParams,
-		});
-		return true;
-	} else {
-		Bismo.log(`[91mFailed to register command "!${name}"! It was already registered.[0m`)
 		return false;
 	}
 }
@@ -755,7 +841,7 @@ Bismo.GetPlugin = function(name, mustBePackage) {
 	} else {
 		return getFromPackageName(name);
 	
-	}	
+	}   
 }
 
 /**
@@ -776,6 +862,9 @@ Bismo.GetPluginMethod = function(name, method, mustBePackage) {
 
 
 
+Bismo.GetDiscordClient = function() {
+	return Client;
+}
 
 
 
@@ -785,8 +874,7 @@ Bismo.GetPluginMethod = function(name, method, mustBePackage) {
 var Plugins = {};
 const { readdirSync, statSync } = require('fs')
 const { join } = require('path');
-const { exception } = require('console');
-
+// const { default: Command } = require('./Support/Command.js');
 const getDirs = p => readdirSync(p).filter(f => statSync(join(p, f)).isDirectory())
 var dirs = getDirs('./Plugins');
 Bismo.log(`[B] Found ${dirs.length} potential plugins..`);
@@ -800,26 +888,23 @@ for (var i = 0; i<dirs.length; i++) {
 					return;
 				}
 
-				var plugin = require(`./Plugins/${fName}/plugin.js`); // Load the code
+				let plugin = require(`./Plugins/${fName}/plugin.js`); // Load the code
 					
 				let name  = fName;
-				if (plugin.manifest == null)
-					plugin.manifest = {
-						name: fName,
-						version: 1,
-						packageName: `bismo.unknown.${fName}`,
-					};
-				else if (!SF.isNullOrEmpty(plugin.manifest.name))
-					name = plugin.manifest.name;
+				if (plugin.manifest == null || plugin.manifest?.packageName == undefined) {
+					Bismo.log(`[B] [31mMissing plugin manifest, skipping ${fName}`);
+					return;
+				}
+				// else if (!SF.isNullOrEmpty(plugin.manifest.name))
+				// 	name = plugin.manifest.name;
 
 				if (plugin.manifest.version == null)
 					plugin.manifest.version = 1;
-
-				var legacyLoad = false; // Currently legacy load is version one (OG). I'll support at least one version back, and I'll *try* to go two back (but imo that's a horrible idea)
-				if (plugin.manifest.version < 2)
-					legacyLoad = true;
-
-				Bismo.log(`[B] Loading plugin (${i + 1}/${dirs.length}) ${name}`); // Hey, we're loading!
+				if (plugin.manifest.targetAPIVersion != lBismo.apiVersion)
+					Bismo.log(`[B] [31mLoading (outdated) plugin (${i + 1}/${dirs.length}) ${name}`); // Hey, we're loading! But very outdated!
+				else
+					Bismo.log(`[B] Loading plugin (${i + 1}/${dirs.length}) ${name}`); // Hey, we're loading!
+	
 				Plugins[name] = plugin;
 
 				const requests = {
@@ -830,20 +915,17 @@ for (var i = 0; i<dirs.length; i++) {
 					for (var a = 0; a < plugin.requests.length; a++) {
 						var component = plugin.requests[a];
 						switch (component) {
-							case "express":
-								requests.express = express;
-								break;
-
-							case "httpServer":
-								requests.httpServer = httpServer;
-								break;
-
 							default:
 								break;
 						}
 					}
 
-
+				/**
+				 * Get a plugin API
+				 * @param {string} name - Either the plugin's name or the plugin's package name
+				 * @param {boolean} [mustBePackage = false] - The name provided represents a plugin's package name
+				 * @return {object} Plugin's API
+				 */
 				requests.Bismo.GetPlugin = function(name, mustBePackage) {
 					function getFromPackageName(name) {
 						for (const [key, value] of Object.entries(Plugins)) {
@@ -865,35 +947,66 @@ for (var i = 0; i<dirs.length; i++) {
 					} else {
 						return getFromPackageName(name);
 					
-					}	
+					}   
 				}
 
-				requests.Bismo.ReadConfig = function(name) { // You can provide a special configuration name here.
+				/**
+				 * Get your plugin's configuration data. Use's the bot's DPAPI settings
+				 * @param {string} [name = "config"] - Config file name
+				 * @param {function} [callback] - Function called once data is read (if undefined function becomes synchronous)
+				 * @return {JSON|Promise} Returns configuration data if callback is undefined, or calls your callback if it is defined
+				 */
+				requests.Bismo.ReadConfig = function(name, callback) { // You can provide a special configuration name here.
 					try {
-						if (name!=undefined) {
-							return require(`./Plugins/${fName}/${name}.json`);
-						}
-						else {
-							return require(`./Plugins/${fName}/config.json`);
-						}
+						if (name==undefined)
+							name = "config";
+
+						if (typeof callback === "function")
+							readJSONFile(`./Plugins/${fName}/${name}.json`).then(callback);
+						else
+							return readJSONFileSync(`./Plugins/${fName}/${name}.json`);
 					} catch (err) {
 						// error
 						console.error(`[B - ${fName} ] Error loading configuration file "config.json".`);
 					}
 				}
+				/**
+				 * Write your plugin's configuration data. Use's the bot's DPAPI settings
+				 * @param {any} data - Configuration data to write
+				 * @param {function} [callback] - Function called once data is saved.
+				 * @param {string} [name = "config"] - Config file name
+				 */
+				requests.Bismo.WriteConfig = function(data, name, callback) { // Same above with the name
+					try {
+						if (name==undefined)
+							name = "config";
 
-				requests.Bismo.WriteConfig = function(data, callback, name) { // Same above with the name
-					if (name!=undefined)
-						fs.writeFile(`./Plugins/${fName}/${name}.json`, JSON.stringify(data), 'utf8', o_O=>{ if (typeof callback === "function") callback(o_O); });
-					else
-						fs.writeFile(`./Plugins/${fName}/config.json`, JSON.stringify(data), 'utf8', o_O=>{ if (typeof callback === "function") callback(o_O); });
+						if (typeof callback === "function")
+							writeJSONFile(`./Plugins/${fName}/${name}.json`, data).then(callback);
+						else
+							return writeJSONFileSync(`./Plugins/${fName}/${name}.json`, data);
+					} catch (err) {
+						// error
+						console.log(err)
+						console.error(`[B - ${fName} ] Error saving configuration file "config.json".`);
+					}
 				}
+
+				/***
+				 * Logs to the console under your plugin's name
+				 */
 				requests.Bismo.log = function(msg) {
 					Bismo.log("\x1b[36m[ " + fName + " ] " + msg + "\x1b[0m");
 				}
+				/**
+				 * Output an error to the console under your plugin's name
+				 */
 				requests.Bismo.error = function(msg) {
 					Bismo.log("\x1b[35m[ " + fName + " ] " + msg + "\x1b[0m");
 				}
+				/**
+				 * Outputs debugging information to the console under your plugin's name (if debug)
+				 */
 				requests.Bismo.debug = function(msg) {
 					dlog("\x1b[36m[ " + fName + " ] " + msg + "\x1b[0m");
 				}
@@ -911,7 +1024,6 @@ for (var i = 0; i<dirs.length; i++) {
 
 			} else {
 				Bismo.log(`[B] Skipping non-plugin folder ${fName}`);
-				//Bismo.log("[B] Warning! Invalid plugin: " + fName);
 			}
 		} catch (error) {
 			console.error(error);
@@ -930,7 +1042,7 @@ for (var i = 0; i<dirs.length; i++) {
 // Event registers
 /*
 *
-*	Each event is emitted with a /Bismo/ "packet" which is a special version of the API that only allows access to that guild
+*   Each event is emitted with a /Bismo/ "packet" which is a special version of the API that only allows access to that guild
 *
 */
 var loaded = false; // Set to true if we can load guild data (and setup the bot) correctly
@@ -938,7 +1050,7 @@ var loaded = false; // Set to true if we can load guild data (and setup the bot)
 
 Bismo.log("[B] Plugins loaded.");
 
-Bismo.events.bot.emit('pluginsLoaded');
+Bismo.Events.bot.emit('pluginsLoaded');
 
 
 // channelCreate = new EventEmitter();
@@ -1045,18 +1157,18 @@ Client.on('voiceStateUpdate', (oldMember, newMember) => { // Call 'observers'
 
 	if(oldUserChannel === undefined && newUserChannel !== undefined) {
 		// User Joins a voice channel
-		Bismo.events.discord.emit('voiceChannelJoin', newUserChannel, { oldMember: oldMember, newMember: newMember }); // Call observer
+		Bismo.Events.discord.emit('voiceChannelJoin', newUserChannel, { oldMember: oldMember, newMember: newMember }); // Call observer
 
 	} else if(newUserChannel === undefined){
 		// User leaves a voice channel
-		Bismo.events.discord.emit('voiceChannelLeave', oldUserChannel, { oldMember: oldMember, newMember: newMember }); // Call observer)
+		Bismo.Events.discord.emit('voiceChannelLeave', oldUserChannel, { oldMember: oldMember, newMember: newMember }); // Call observer)
 	}
 })
 
 
 
 /*  MESSAGES / COMMANDS  */
-Client.on("message", message => {
+Client.on("messageCreate", message => {
 	try {
 		// The most import part, commands.
 		if(message.type === "PINS_ADD" && message.author.bot) message.delete(); // Remove pin notifications from the bot.
@@ -1068,11 +1180,11 @@ Client.on("message", message => {
 
 		// // Emotes
 		// if (message.content.startsWith("<:") && message.content.endsWith(">")) {
-		// 	if (message.content.startsWith("<:dawson:")) {
-		// 		message.delete().then(o_o=>{ message.channel.send("", {files: ["https://s.cnewb.co/dawson.png"]}) });
-		// 	}
+		//  if (message.content.startsWith("<:dawson:")) {
+		//      message.delete().then(o_o=>{ message.channel.send("", {files: ["https://s.cnewb.co/dawson.png"]}) });
+		//  }
 
-		// 	return;
+		//  return;
 		// }
 
 
@@ -1137,30 +1249,29 @@ Client.on("message", message => {
 
 		commandData.Reply = function(msg) {
 			if (message.firstReply) {
-				message.channel.stopTyping();
 				message.firstReply = false;
 			}
-			message.channel.send(msg);
+			message.channel.send({ content: msg, reply: { messageReference: message.id } });
 		}
 		commandData.reply = commandData.Reply;
 
 		commandData.message = message;
 
-		commandData.GetReply = function(prompt, callback, options) {
+		commandData.GetReply = function(prompt, options) {
 			if (options == undefined)
 				options = {};
 
 			if (options.cancelCommand == undefined || options.cancelCommand == "")
 				options.cancelCommand == "!~cancel"
 
-			message.reply(prompt + "\nTo cancel, type `" + options.cancelCommand + "`");
+			commandData.Reply(prompt + "\nTo cancel, type `" + options.cancelCommand + "`");
 
-			Bismo.getUserReply(message.author.id, message.channel.id, callback, options);
+			return Bismo.GetUserReply(message.author.id, message.channel.id, options);
 		}
 
 		// Okay, we have everything.
 		// Emit an event.
-		Bismo.events.discord.emit('message', message); // ideally this would be able to be captured so listening code could halt execution and/or we wait for the listeners.
+		Bismo.Events.discord.emit('messageCreate', commandData); // ideally this would be able to be captured so listening code could halt execution and/or we wait for the listeners.
 
 		// Cycle through our command handlers
 		let cmd = Commands.get(command);
@@ -1204,23 +1315,20 @@ Client.on("message", message => {
 				return;
 			}
 
-
-			message.channel.startTyping();
+			message.channel.sendTyping();
 
 			if (args[0] == "help" || (args[0] == undefined && cmd.requireParams == true)) {
 				// Display the help message automatically
 				commandData.Reply("`" + command + "` - " + cmd.description + "\n" + cmd.helpMessage)
 			}
 			else {
-				(async function(){ // nasty catcher v923
+				(async function () { // nasty catcher v923
+
 					cmd.handler(commandData);
 				})().catch((err)=>{
 					console.error("[B] Command error, cmd: " + command + ".\nFull message: " + message.content);
 					dlog("[B-e] Trace: " + err.stack);
 					return true;
-				}).finally(async ()=>{
-					await new Promise(resolve => setTimeout(resolve, 500));
-					message.channel.stopTyping(true);
 				}); // Run async
 				
 			}
@@ -1233,83 +1341,21 @@ Client.on("message", message => {
 });
 
 
-// Sample reply:
-/*
-{
-  version: 1,
-  type: 2,
-  token: '',
-  member: {
-    user: {
-      username: 'Corporate America',
-      public_flags: 0,
-      id: '',
-      discriminator: '',
-      avatar: ''
-    },
-    roles: [ '', '' ],
-    premium_since: null,
-    permissions: '',
-    pending: false,
-    nick: null,
-    mute: false,
-    joined_at: '',
-    is_pending: false,
-    deaf: false,
-    avatar: null
-  },
-  id: '858419041417035828',
-  guild_id: '',
-  data: { 
-  	options: [
-      { value: 'animal_cat', type: 3, name: 'animal' },
-      { value: true, type: 5, name: 'only_smol' }
-    ],
-  	name: 'testcommand',
-  	id: '858418480062922814'
-  },
-  channel_id: '',
-  application_id: ''
-}
 
-*/
-
-// Bismo.RegisterCommand("testCommand", bruh => {
-// 		// utilLog(bruh);
-// 		bruh.Reply("reply1")
-// 		setTimeout(()=>{
-// 			bruh.Reply("you've been GNOMED");
-// 		}, 1500);
-// 	}, {
-// 		friendlyName: "Test Command",
-// 		description: "Used to test things. Send a random adorable animal photo",
-// 		helpMessage: "I don't know",
-// 		slashCommand: true,
-// 		chatCommand: false,
-// 		whitelistGuilds: ['344624502954524684'],
-// 	});
-
-Client.ws.on('INTERACTION_CREATE', async interaction => { // async?
+Client.on('interactionCreate', async interaction => { // async?
 	// We've received an interaction. This could be either a message component or a slash command
 	// Since we only support slash commands at the moment, I'm going on the assumption it's one of those
 	try {
-		if (interaction.type != 2) // 1 = ping, 2 = slash command, 3 = message component
+		if (interaction.type != "APPLICATION_COMMAND") // 1 = ping, 2 = slash command, 3 = message component, 4 = application command autocomplete ?
 			return;
 
-		if (interaction.data == undefined)
+		if (interaction.options == undefined)
 			return;
 
-		let cmd = Commands.get(interaction.data.name);
+		let cmd = Commands.get(interaction.commandName);
 
-		Client.api.interactions(interaction.id, interaction.token).callback.post({
-			data: {
-				type: 5,
-				data: {
-					content: "Processing...",
-					flags: 1<<6,
-				}
-			}
-		}); // This sends "is thinking" as the first response. This allows the user to see that the command was received.
+		await interaction.deferReply(); // This sends "is thinking" as the first response. This allows the user to see that the command was received.
+		// This also allows us 15 minutes to reply rather than 3 seconds
 
 		var authorID = "";
 		if (interaction.member != undefined)
@@ -1320,46 +1366,38 @@ Client.ws.on('INTERACTION_CREATE', async interaction => { // async?
 		var userObject = await Client.users.fetch(authorID); // Fetch the user object
 
 		var commandData = {
-			alias: interaction.data.name, // for the idiot that uses the same handler for every command. LOL who would do that? hahaha don't look at my stuff
+			alias: interaction.commandName,
 			author: userObject,
 			authorID: authorID,
 			guildID: interaction.guild_id,
-			guild: Bismo.GetDiscordGuildObject(interaction.guild_id),
-			inGuild: (interaction.guild_id != undefined)? true : false,
-			guildAccount: Bismo.GetBismoGuildObject(interaction.guild_id),
-			isInteraction: true, // duh lol xD god I've drunk so much caffeine I DID COKE LMAO - COKE MORE LIKE CODE POWDER XDDDD waitwait CODING SOCKES: ACTIVE, CODING POWDER: SNORTED LOLLLL
+			guild: Bismo.GetDiscordGuildObject(interaction.guildId),
+			inGuild: (interaction.guildId != undefined)? true : false,
+			guildAccount: Bismo.GetBismoGuildObject(interaction.guildId),
+			isInteraction: true,
 		};
 
 		// Phrase the args.
 		commandData.args = [];
-		if (interaction.data.options) {
-			if (interaction.data.options.length >= 1) {
-				for (var i = 0; i<interaction.data.options.length; i++) {
-					commandData.args[i] = interaction.data.options[i].value;
+		if (interaction.options) {
+			if (interaction.options.data.length >= 1) {
+				for (var i = 0; i<interaction.options.data.length; i++) {
+					commandData.args[i] = interaction.options.data[i].value;
 				}
 			}
 		}
 
 		interaction.firstReply = true;
-		commandData.channel = Bismo.GetGuildChannelObject(interaction.guild_id, interaction.channel_id);
+		commandData.channel = Bismo.GetGuildChannelObject(interaction.guildId, interaction.channelId);
 
-		commandData.Reply = function(msg) {
+		commandData.Reply = async function(msg) {
 			if (interaction.firstReply) {
 				interaction.firstReply = false;
+				return await interaction.editReply({ content: msg, ephemeral: cmd.ephemeral });
 				// update the interaction response
-			}
-			// } else {
+			} else {
 				// send message
-				// interaction.channel.send(msg); // technically we can just do the same as the above but fuck it
-			// }
-			Client.api.webhooks(Client.user.id, interaction.token).post({
-				type: 4,
-				data: {
-					content: msg,
-					flags: 1<<6,
-				}
-			});
-				//send(msg);
+				return await interaction.followUp({ content: msg, ephemeral: cmd.ephemeral });
+			}
 		}
 
 		commandData.GetReply = function(prompt, callback, options) {
@@ -1379,15 +1417,15 @@ Client.ws.on('INTERACTION_CREATE', async interaction => { // async?
 		// commandData.prefix = ""; // actually not a thing in a slash command .. :shrug:
 
 		// Find the command
-		dlog("Interaction: " + interaction.data.name)
+		dlog("Interaction: " + interaction.commandName)
 		if (cmd != undefined) {
 			if (!cmd.slashCommand) {
 				// unregister command
-				commandData.Reply("O_O !! Command fault, stagnant (unknown) command.");
+				commandData.Reply("O_O !! Command fault, not a slash command (stagnant register?).");
 				return; // Not a slash command (why was it registered?)
 			}
 
-			var inGuild = interaction.guild_id != undefined;
+			var inGuild = interaction.guildId != undefined;
 			if (inGuild) {
 				if (cmd.usersOnly) {
 					commandData.Reply("O_O !! Command fault, command can only be used in the DMs.");
@@ -1396,7 +1434,7 @@ Client.ws.on('INTERACTION_CREATE', async interaction => { // async?
 				if (cmd.whitelistGuilds != undefined) {
 					var whitelisted = false;
 					for (var i = 0; i<cmd.whitelistGuilds.length; i++) {
-						if (cmd.whitelistGuilds[i] == interaction.guild_id) {
+						if (cmd.whitelistGuilds[i] == interaction.guildId) {
 							whitelisted = true;
 							break;
 						}
@@ -1409,7 +1447,7 @@ Client.ws.on('INTERACTION_CREATE', async interaction => { // async?
 				if (cmd.blacklistGuilds != undefined) {
 					var blacklisted = false;
 					for (var i = 0; i<cmd.blacklistGuilds.length; i++) {
-						if (cmd.blacklistGuilds[i] == interaction.guild_id) {
+						if (cmd.blacklistGuilds[i] == interaction.guildId) {
 							blacklisted = true;
 							break;
 						}
@@ -1434,16 +1472,6 @@ Client.ws.on('INTERACTION_CREATE', async interaction => { // async?
 			(async function() {
 				cmd.handler(commandData);
 				// command done, remove status (if needed)
-
-				if (interaction.firstReply) {
-					// remove?
-					// new Discord.WebhookClient(Client.user.id, interaction.token).send('👌')//.then(()=> {
-						// setTimeout(() => { 
-							// Client.api.webhooks(Client.user.id, interaction.token).messages('\@original').delete(); // delete that message, lol
-						// }, 1000);
-
-					// });
-				}
 			})().catch((err) => {
 				console.error("[B] Command (interaction) error, cmd: " + interaction.data.name);
 				dlog("[B-e] Trace: " + err.stack);
@@ -1459,20 +1487,20 @@ Client.ws.on('INTERACTION_CREATE', async interaction => { // async?
 	} catch(error) {
 		console.error("Command fault (unexpected exception in interaction handler).");
 		dlog("[B-e] Trace: " + error.stack);
-		new Discord.WebhookClient(Client.user.id, interaction.token).send('Bismo command fault (unexpected exception in interaction handler).');
+		//new Discord.WebhookClient(Client.user.id, interaction.token).send('Bismo command fault (unexpected exception in interaction handler).');
 	}
 }); // End interaction create
 
 
 
-/*  STARTUP  */
 
-Client.on("ready", () => {
+/*  STARTUP  */
+Client.on("ready", async () => {
 	lBismo.guildObjects = {};
-	var guilds = Client.guilds.cache.array();
+	var guilds = [...Client.guilds.cache.values()];
 	for (var i = 0; i<guilds.length; i++) {
 		lBismo.guildObjects[guilds[i].id] = guilds[i];
-		Client.api.applications(Client.user.id).guilds(guilds[i].id).commands.put({data: []});
+		// Client.api.applications(Client.user.id).guilds(guilds[i].id).commands.put({data: []});
 	}
 
 	Bismo.botID = Client.user.id;
@@ -1487,11 +1515,13 @@ Client.on("ready", () => {
 
 	// Register the slash commands now
 	Client.api.applications(Client.user.id).commands.put({data: []}); // clear the commands first
+	// We should check to see if our commands actually updated or not. If they did: remove/add as needed. If they did not: do nothing.
 
 	
 
 	if (awaitingRegister.length>=1)
 		for (var i = 0; i<awaitingRegister.length; i++) {
+			continue; // Registered for the day
 			let alias = awaitingRegister[i];
 			var cmd = Commands.get(alias);
 			if (cmd != undefined) {
@@ -1499,34 +1529,51 @@ Client.on("ready", () => {
 					if (cmd.whitelistGuilds != undefined) {
 						for (var b = 0; b<cmd.whitelistGuilds.length; b++) { // Only add the command to guilds that are allowed to use the command ;P
 							// lol used i and not b, screwed the loader! hahaha whoops ....
-							Client.api.applications(Client.user.id).guilds(cmd.whitelistGuilds[b]).commands.post({data: {
+							// Client.api.applications(Client.user.id).guilds(cmd.whitelistGuilds[b]).commands.post({data: {
+							// 	name: alias,
+							// 	description: cmd.description,
+							// 	options: cmd.slashCommandOptions,
+							// }}).error(()=> {
+							// 	console.log("[B] Failed to register `" + alias + "`");
+							// });
+							await Discord.Rest.post(Routes.applicationGuildCommands(Client.user.id, cmd.whitelistGuilds[b]), { body: {
 								name: alias,
 								description: cmd.description,
 								options: cmd.slashCommandOptions,
-							}}).error(()=> {
-								console.log("[B] Failed to register `" + alias + "`");
-							});
+							} });
 						}
 					} else {
 						if (debug) {
-							let keys = Object.keys(lBismo.guildObjects);
-							for (var o = 0; o<keys.length; o++) {
-								Client.api.applications(Client.user.id).guilds(keys[o]).commands.post({data: {
+							let keys = ['756391901099458600']; // Debug clan
+							for (var o = 0; o < keys.length; o++) {
+								let body = {
 									name: alias,
 									description: cmd.description,
 									options: cmd.slashCommandOptions,
-								}}).error(()=> {
-								console.log("[B] Failed to register `" + alias + "`");
-							});
+								};
+                                await Discord.Rest.post(Routes.applicationGuildCommands(Client.user.id, keys[o]), { body: body });
+								// Client.api.applications(Client.user.id).guilds(keys[o]).commands.post({data: {
+								// 	name: alias,
+								// 	description: cmd.description,
+								// 	options: cmd.slashCommandOptions,
+								// }}).error(()=> {
+								// console.log("[B] Failed to register `" + alias + "`");
+								//});
 							}
 						} else {
-							Client.api.applications(Client.user.id).commands.post({data: {
+							// Register command globally
+							await Discord.Rest.post(Routes.applicationCommands(Client.user.id), { body: {
 								name: alias,
 								description: cmd.description,
-								cmd: cmd.slashCommandOptions,
-							}}).error(()=> {
-								console.log("[B] Failed to register `" + alias + "`");
-							});;
+								options: cmd.slashCommandOptions,
+							} } );
+							// Client.api.applications(Client.user.id).commands.post({data: {
+							// 	name: alias,
+							// 	description: cmd.description,
+							// 	cmd: cmd.slashCommandOptions,
+							// }}).error(()=> {
+							// 	console.log("[B] Failed to register `" + alias + "`");
+							// });
 						}
 					}
 					console.log("[B] Registered `" + alias + "`");
@@ -1538,36 +1585,26 @@ Client.on("ready", () => {
 			}
 		}
 
-	// (async () => {
- //    // let commands = await Client.api.applications(Client.user.id).commands.get();
- //    let commands = await Client.api.applications(Client.user.id).guilds('344624502954524684').commands.get();
- //    utilLog(commands);
- //  })();
-
-
-
 	fs.readFile('./Data/Guilds.json', 'utf8', (err, data) => {
 		if (err) {
 			// Load error
 			console.warn(err);
 			console.warn("Failed to load guild data, bot will not function correctly.");
 			Client.user.setActivity("Startup failure.");
-			loaded = false;
 			return;
 		}
 
 		if (data.substr(0,5) == "DPAPI") {
 			// Yes
 			data = data.substr(5);
-			data = dpapi.unprotectData(Buffer.from(data, 'utf-8'), entropy, "CurrentUser"); // Note: you can also use the LocalMachine key rather than CurrentUser
-			// The null refers to the option entropy that we're ignoring
+			data = dpapi.unprotectData(Buffer.from(data, 'utf-8'), entropy, DPAPIKeyScope);
 		}
 
 
 		function completed() {
 			Client.user.setActivity(Config.Discord.activity);
 			Bismo.log("[B] Bismo loaded.");
-			Bismo.events.discord.emit('ready', Client);
+			Bismo.Events.discord.emit('ready', Client);
 		}
 
 		// lBismo.guildAccounts = JSON.parse(data); // Load the guilds
@@ -1586,17 +1623,9 @@ Client.on("ready", () => {
 			if (guild != undefined)
 				lBismo.guildAccounts.push(guild);
 		}
-
-		// Update the permissions for each Bismo account (since we save permissions with the guilds, not users.)
-		// for (var i = 0; i<Accounts.length; i++) {
-		// 	if (Accounts[i]!=null) {
-		// 		Accounts[i].updatePermissions(GAccounts);
-		// 	}
-		// }
 		
-		var loaded = 0;
+		let loaded = 0;
 		if (lBismo.guildAccounts.length == 0) {
-			// loaded
 			completed();
 
 		} else {
@@ -1606,18 +1635,28 @@ Client.on("ready", () => {
 				
 				var gID = lBismo.guildAccounts[i].id;
 				Client.guilds.fetch(gID).then(gD => {
+					lBismo.guildObjects[gID] = gD;
+
 					// Setup the guild
 					var BismoPacket = {
 						gID: gID, // The guild ID
 						guild: gD, // Discord guild object
 						bismoGuildObject: lBismo.guildAccounts[i], // The guild account
 					};
-					Bismo.events.bot.emit('guildDiscovered', BismoPacket);
+					/**
+					 * Guild Discovered event
+					 * 
+					 * @event Bismo.Bot#guildDiscovered
+					 * @type {object}
+					 * @property {string} guildID - ID of the guild discovered
+					 * @property {Discord.Guild} guild - Discord guild object of discovered guild
+					 * @property {Bismo.GuildAccount} bismoGuildObject - Bismo GuildAccount object of discovered guild
+					 */
+					Bismo.Events.discord.emit('guildDiscovered', BismoPacket);
 					loaded++;
 
 
 					if (loaded>= lBismo.guildAccounts.length) {
-						loaded = true;
 						completed();
 					}
 				});
@@ -1630,66 +1669,40 @@ Client.on("ready", () => {
 
 
 
+
+// Bismo commands
+/*
+	Bismo commands
+
+
+	I would like for people to keep these commands in deployment.
+
+	However, if you feel like they pose some security risk or other annoyance, feel free to remove them.
+	There's no reason to remove them, but go for it I guess.
+*/
+Bismo.RegisterCommand("version", message => { // Current bot version
+	message.Reply("Running  _Bismo_  version `" + Bismo.version + "` "
+		+ ((Bismo.debugMode)? "\n`{*debug*, isWin?" + Bismo.isWindows + "}`" : ""));
+}, {
+	description: "Reveal which version of Bismo is under the hood.",
+	helpMessage: "Usage:\n`/version`",
+	requireParams: false,
+	chatCommand: true,
+	slashCommand: true
+});
+Bismo.RegisterCommand("ping", message => {
+	message.Reply("Pong!");
+}, {
+	description: "Ping the bot.",
+	helpMessage: "Usage:\n`/ping`",
+	requireParams: false,
+	chatCommand: true,
+	slashCommand: true
+})
+
 // Okay, we're ready to "start"
 
 
-// Web server
-httpServer.listen(Config.webPort, () => {
-	Bismo.log("[Web] Express server listening on port " + Config.webPort);
-});
-
-
-
-app.get("/", (req, res) => {
-	res.end(`<html>
-	<head>
-		<title>Project Bismo</title>
-	</head>
-	<body>
-		<h1>Landing page</h1>
-	</body>
-</html>`);
-});
-
-
-
-
-
-
-// Start the bot
-
-Bismo.RegisterCommand("version", message => {
-		let debugActive = "";
-		if (Bismo.debugMode) {
-			debugActive = "\n`{*debug*, isWin?" + Bismo.isWindows + "}`";
-		}
-
-		message.Reply("Running  _Bismo_  version `" + Bismo.version + "` " + debugActive + "");
-	}, {
-		description: "Reveal which version of Bismo is under the hood.",
-		helpMessage: "Usage:\n`/version`",
-		requireParams: false,
-		chatCommand: true,
-		slashCommand: true
-	});
-
-
 // go for launch
+Discord.Rest = new REST({ version: '9' }).setToken(Config.Discord.token);
 Client.login(Config.Discord.token);
-
-
-// fs.readFile('./accounts.json', 'utf8', function readFileCallback(err, data){
-// 	if (err){
-// 		Bismo.log("\x1b[31mError loading account data! The bot has halted until the error is solved. (Possible arroundData corruption?)\n\nError: " + err + "\x1b[0m");
-// 		process.exit(1);
-// 	} else {
-// 		var accountJSON = JSON.parse(data);
-// 		for (var i = 0; i<accountJSON.length; i++)
-// 		{
-// 			Accounts.push(BismoAccount(accountJSON[i]))
-// 		}
-
-// 		Bismo.log("[B] Accounts loaded.");
-		
-// 	}
-// });

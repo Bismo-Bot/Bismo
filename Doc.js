@@ -7,7 +7,17 @@
 	
 			Yet Another JS/Discord Framework/Bot
 
+Outdated, use Doc.md
 	
+
+Returns a plugin's method
+
+@param {string} name - Name of the plugin
+@param {string} method - Name of the method
+@param {boolean} [mustBePackage = false] - Whether or not the name is the package name.
+@return {function} Requested plugin method
+ 
+
 
 	Bismo API:
 		### Private
@@ -16,8 +26,6 @@
 
 			lBismo.guildAccounts: 	Array of Bismo guild account data (Bismo side)
 			lBismo.guildObjects: 	Object containing all the Discord guild objects
-
-			# deprecated # lBismo.userAccounts: 	Array of Bismo user accounts (Bismo side)
 
 			lBismo.waitForReply: 	Array of GetReply IDs (when using GetReply, Bismo saves an ID of the interaction so the messages handler can ignore the response)
 
@@ -169,29 +177,10 @@
 													(note this can either be the friendly name or the package name. Friendly name will load *slightly* fast, package is safer.)
 													To force package name lookup, set mustBePackage to true
 
-			Bismo.readConfig([name]): Returns a configuration file for your plugin (name defaults to config)
+			Bismo.ReadConfig([name, callback]): Returns a configuration file for your plugin (name defaults to config)
 			Bismo.writeConfig(data, [callback, name]): Writes data to the plugin configuration file. (callback is called when save successful, name defaults to config)
 			Bismo.log(msg): Output to the console with your plugins name. Do not use console.log, use this instead.
-			Bismo.registerCommand(command, callback, description, helpMessage): Allows you to register a command. This is the first string of text after our listener cue (! or mention). The call back is the handler for this command.
-				We pass the following to the callback
-					message: The Discord message object. We include some extras with this...
-						prefix: The prefix used to get the bot's attention (like !)
-						args: An array containing everything after the command, split up on spaces (So, if the user sends "!account create bigdog" args would contain ["create", "bigdog"])
-						reply(msg): Quick easy way to reply to the author
-						BismoAccount: The Bismo of the author (sender) of the message.
-							This has the addition of .hasPermission(perm) for checking current permissions (if in guild)
-							To compare against another guild, do BismoAccount.guilds[guildID].hasPermission(perm)
-						GAccount: The (if available) Guild account for the guild this message was sent via
 
-				Description: a description of the command
-				HelpMessage: the message displayed when !command [help] is ran
-				MetaData: Optional data to include ...
-					usersOnly: Command can't be used in guilds, only DMs
-					whitelistGuilds: These guilds (ids) are the only ones that can use this command
-					blacklistGuilds: These guilds (ids) can not use this command
-					hidden: Command is hidden from help/list commands
-					guildRequired: Only run within a guild
-					noParams: No additional parameters for this command.
 
 
 	Web endpoints:

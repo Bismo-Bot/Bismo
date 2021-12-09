@@ -6,3 +6,4 @@ config*.json
 accounts.json
 guilds.json
 Data/
+.vs/

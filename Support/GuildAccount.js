@@ -6,10 +6,35 @@
 */
 
 
-// GuildData 'class'
-
-
+/**
+ * GuildAccount class
+ * @property {string} id - The ID of the guild
+ * @property {string} name - Name of the guild
+ * @property {Bismo.Permissions} permissions - Permissions object assumed by the guild
+ * @property {object} pluginData - Additional data to append to a GuildAccount by plugins
+ * @property {string} prefix - Prefix of text commands in the guild
+ * @property {boolean} claim - If the guild has been "claimed" (setup) yet
+ * @property {string} textChannel - Text channel ID we log to
+ */
 class GuildAccount {
+    /**
+     * @typedef {Bismo.GuildAccountConstructorData} GuildAccountConstructorData - The data passed to the GuildAccount constructor
+     * @property {string} id - The ID of the guild
+     * @property {string} name - Name of the guild
+     * @property {Bismo.Permissions} permissions - Permissions object assumed by the guild
+     * @property {string} owner - User ID that owns the guild (if passed, they will be granted 'true' on permission '*' (all permissions))
+     * @property {object} pluginData - Additional data to append to a GuildAccount by plugins
+     * @property {string} prefix - Prefix of text commands in the guild
+     * @property {boolean} claim - If the guild has been "claimed" (setup) yet
+     * @property {string} textChannel - Text channel ID we log to
+     * 
+     */
+
+
+    /**
+     * GuildAccount constructor
+     * @param {Bismo.GuildAccountConstructorData} data - GuildAccountContructor data
+     */
     constructor(data) {
 
         if (data == undefined)
@@ -268,7 +293,10 @@ class GuildAccount {
 
         };
 
-        this.GetSterial = function() {
+        /**
+         * Returns a stripped, file safe, version of this guild data
+         */
+        this.GetSterile = function() {
             // Strip runtime details and methods
             var stripped = {
                 id: this.id,

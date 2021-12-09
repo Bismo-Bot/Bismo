@@ -1,0 +1,24 @@
+To do's:
+
+Immediate:
+Bismo Guild permissions
+
+
+Short-term:
+Register interactions (slash commands) that are not currently registered
+Unregister interactions that are no longer needed
+
+Buttons and select menus support
+
+
+Plugins:
+Queuer v2
+	YT v2
+	SimplePlayer
+
+Back-end:
+Sandbox plugins (their environments)
+Plugin permissions (Bismo determines what plugins have access to what)
+Console interface (operator can interface with Bismo directly).
+Broaden commands to be implemented anywhere (Discord commands, Steam commands, Global commands, etc)
+Bismo modules ? Loaded first thing, allows for core changes without changing the bismo.js file (turbo plugins)
