@@ -10,3 +10,8 @@
 # Bismo
 ... is a Discord bot "framework".\
 _Whatever that means_
+
+
+---
+
+Bismo is still in the early development stages and not yet released.
