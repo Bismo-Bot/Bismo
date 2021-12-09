@@ -224,5 +224,93 @@ There are some custom Bismo events, however. Here they are:
 
 
 ##### Bismo.Events.bot
-`guildDiscovered`: On startup, this is called for each guildAccount loaded. The only parameter is an object: `{ gID: guildID, guild: Discord.Guild, bismoGuildObject: Bismo.GuildAccount } `\
+`guildDiscovered`: On startup, this is called for each guildAccount loaded. The only parameter is an object: `{ guildId: string, discordGuildObject: Discord.Guild, bismoGuildObject: Bismo.GuildAccount } `\
 `pluginsLoaded`: Emitted after all plugins have been loaded.
+
+
+### Permissions
+Bismo allows for custom permissions to be set for users in a guild. This allows for guild administrators to more finally control the permissions users have when interacting with the bot.\
+Permissions follow a similar scheme to Minecraft's permission system in that permissions are individual strings, like `bismo.chatCommands` or `twilio.config.*`.
+
+Permissions can be three values, true, false or undefined. True and false are self explanatory, but undefined leaves the interpretation up to the caller (allowing a plugin to fallback to its default).
+
+Wildcards can be used to set all child permissions, and are the only way to alter child permissions. With that said, wildcard permissions do not override defined permissions.\\
+The best way to explain this is by example:\
+`cooldude42.awesomeplugin.interactions.* = true` will set everything after `.interactions` to be true.\
+However, if we set `cooldude42.awesomeplugin.interactions.onsundays = false` then when we query the permission `cooldude42.awesomeplugin.interactions.onsundays` we get the value `false` rather than the value set by the wildcard.\
+Additionally, if we have a wildcard further down than another, the one furthest down (or closest to our target permission) is the one that takes precedence.
+```
+cooldude42.awesomeplugin.* = true
+cooldude42.awesomeplugin.interactions.betweenUsers.* = false
+cooldude42.awesomeplugin.interactions.betweenUsers.toAdmin.onSundays = true
+```
+
+Query `cooldude42.awesomeplugin.interactions`: true\
+Query `cooldude42.awesomeplugin.interactions.betweenUsers`: false\
+Query `cooldude42.awesomeplugin.interactions.betweenUsers.toGuest`: false\
+Query `cooldude42.awesomeplugin.interactions.betweenUsers.toAdmin.onSundays`: true
+Query `cooldude42.awesomeplugin.interactions.betweenUsers.toAdmin.onSundays.atTwelve`: false (returns the last wildcard (`cooldude42.awesomeplugin.interactions.betweenUsers.*`)\
+
+
+Permissions are stored in the GuildAccount under `GuildAccount.permissions` and looks like this:
+```
+this.permissions = {
+    roles: {
+        Default: {
+            parents: undefined,
+            name: "Default",
+            permissions: {
+            	"bismo.example": false
+            }
+        }
+    },
+    users: {
+    	"123456789012345678": {
+    		roles: ["Default"],
+    		permissions: {
+    			"*": true
+    		}
+    	}
+    }
+};
+```
+
+GuildAccount's have a few functions to manage permissions.\
+_Unless otherwise specified, all parameters are strings. A type error will be thrown if you try other types._
+
+`CheckForPermission(permissionSet, permission)`: Checks to see the value of `permission` in the dictionary (object) `permissionSet`. This is an internal function used to check user permissions.\
+Returns true, false or undefined.
+
+`UserHasPermission(userId, permission)`: Check if the guild member (userId) has the permission `permission` set and if so return what it is.\
+Returns true, false or undefined.
+
+`RemovePermission(permissionSet, permission, includingChildren)`: Removes a permission from the `permissionSet` object. Also remove child permissions if `includingChildren == true`.
+
+`UserExists(userId)`: Internal function, checks if a users is in the permissions object (if they are, creates the roles/permission object for the user (if they're undefined))
+
+`RemoveUserPermission(userId, permission, includingChildren)`: Removes a permission from the user. Wrapper for `RemovePermission(this.permissions.users[userId].permissions, permission, includingChildren)`
+
+`SetUserPermission(userId, permission, value)`: Sets a user's permission to value (permission can be anything including wildcards). `value` _should_ be a boolean.
+
+`AddUserRole(userId, role)`: Adds an inheritance role to a user if not already added
+
+`RemoveUserRole(userId, role)`: Removes an inheritance role from a user
+
+`SetUserRoles(userId, roles)`: Sets a user's inheritance roles to the roles array passed (`this.permissions.users[userId].roles = roles`)
+
+`ClearUserRoles(userId)`: Sets the user's roles to an empty array
+
+`ClearUserPermissions(userId)`: Sets the user's permissions to an empty dictionary
+
+`DeleteUserPermissions(userId)`: Removes reference to a user from the permissions storage (object)
+
+Roles:\
+`RoleExists(role)`: Internal function, checks if a role is in the permissions object
+
+`SetRolePermission(role, permission, value)`: Sets a role's permission to a value (permission can be anything (string) including wildcards). `value` _should_ be a boolean.
+
+`RemoveRolePermission(role, permission, includingChildren)`: Removes a permission from the role. Wrapper for `RemovePermission(this.permissions.roles[role].permissions, permission, includingChildren)`
+
+`RenameRole(currentName, newName)`: Renames a role from `currentName` to `newName`. Also updates the name in the user's roles
+
+`DeleteRole(role)`: Removes a role from the permissions storage and removes the role from users

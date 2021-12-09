@@ -1,6 +1,6 @@
 /*
 
-		____  _                    
+		____  _					
 	   / __ )(_)________ ___  ____ 
 	  / __  / / ___/ __ `__ \/ __ \
 	 / /_/ / (__  ) / / / / / /_/ /
@@ -47,7 +47,7 @@ const lBismo = {
 const ogLog = console.log;
 /***
  * Logs to the console
- * @param {Object} Message to log
+ * @param {string} Message to log
  */
 Bismo.log = function(msg) {
 	ogLog(msg + endTerminalCode);
@@ -116,7 +116,7 @@ process.on('unhandledRejection', (error) => {
 const EventEmitter = require('events');
 Bismo.Events = {}
 Bismo.Events.discord = new EventEmitter();  // Discord events
-Bismo.Events.bot = new EventEmitter();      // Bot (system) events
+Bismo.Events.bot = new EventEmitter();	  // Bot (system) events
 
 
 
@@ -149,8 +149,8 @@ const DPAPIKeyScope = "CurrentUser"; //
 
 /**
  * Writes an {object} to file by first converting it to JSON. If DPAPI enabled, we save using DPAPI encryption
- * @param {string} path - The path the JSON file will be saved to
- * @param {object} contents - The contents to convert to JSON and save 
+ * @param {string} path The path the JSON file will be saved to
+ * @param {object} contents The contents to convert to JSON and save 
  * @return {Promise} writeFile promise
  */
 function writeJSONFile(path, contents) {
@@ -177,8 +177,8 @@ function writeJSONFile(path, contents) {
 }
 /**
  * Synchronous wrapper for writeJSONFile
- * @param {string} path - The path the JSON file will be saved to
- * @param {object} contents - The contents to convert to JSON and save 
+ * @param {string} path The path the JSON file will be saved to
+ * @param {object} contents The contents to convert to JSON and save 
  */
 function writeJSONFileSync(path, contents) {
 	if (!isWin || !useDPAPI) {
@@ -192,7 +192,7 @@ function writeJSONFileSync(path, contents) {
 }
 /**
  * Reads a JSON from file and then parses it. If DPAPI enabled, we read using DPAPI decryption (and encrypt the file if it has not already been encrypted)
- * @param {string} path - The path to the JSON file that will be read
+ * @param {string} path The path to the JSON file that will be read
  * @return {JSON} JSON object of config data
  */
 function readJSONFile(path) {
@@ -227,7 +227,7 @@ function readJSONFile(path) {
 }
 /**
  * Synchronous wrapper for readJSONFile
- * @param {string} path - The path to the JSON file that will be read
+ * @param {string} path The path to the JSON file that will be read
  * @return {JSON} JSON object of config data
  */
 function readJSONFileSync(path) {
@@ -288,9 +288,7 @@ const { Routes } = require("discord-api-types/v9");
 
 
 
-
-const GuildAccount = require('./Support/GuildAccount')(Client);
-
+const GuildAccount = require('./Support/GuildAccount');
 // Setup
 
 // Load and decrypt the config file (if on Windows)
@@ -312,7 +310,7 @@ var Commands = new Map();
 // Use this to wait for additional input from a user. When called, the user ($ID)'s next message will be sent straight to the callback function. We do not process the next message from user $ID (as a command or anything else)
 // To cancel input collection, the user just has to reply with the "cancel command".
 // Note, this command DOES NOT require the user to type the bot's prefix, (! or its mention) for us to process it. The user just types the cancel command in itsentirety.
-Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter, options) { // userID, reply channel, cancel command (to stop listening), callback function (when reply got), filter, options
+Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter, options) { // userId, reply channel, cancel command (to stop listening), callback function (when reply got), filter, options
 	var wFRID = crypto.createHash('sha1').update(id + channel).digest('base64');
 	lBismo.waitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
 
@@ -342,28 +340,28 @@ Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter
 
 /**
  * GetUserReplyOptions for GetUserReply function
- * @typedef {object} Bismo.GetUserReplyOptions
- * @property {string} cancelCommand - What a user must type in order to dismiss and cleanup the listener.
- * @property {any} filter - The filter passed to the Discord.MessageCollector, default to m=>m.author.id === id (only accept messages with the user's ID)
- * @property {any} options - Further options passed to the Discord.MessageCollector
+ * @typedef {object} BismoGetUserReplyOptions
+ * @property {string} cancelCommand What a user must type in order to dismiss and cleanup the listener.
+ * @property {any} filter The filter passed to the Discord.MessageCollector, default to m=>m.author.id === id (only accept messages with the user's ID)
+ * @property {any} options Further options passed to the Discord.MessageCollector
  */
 
 /**
- * Grab a user's input (process in-line a user reply). Next message from a user in channelID is ignored except by your callback.
- * The returned promise will either resolve with the user's unmodified message or reject if they canceled (using the cancel command, !~cancel).
- * Use this to wait for additional input from a user. When called, the user's next message will be resolved and processed by the calling code without any altering.
- * *We do split the user's message by white space into an array called 'args'
- * To prevent command processing from this user we calculate the SHA1 of the user's ID and channel's ID concatenated together and then add that to the waitForReply array.
- * When a normal message comes in, we always calculate this same SHA1 and check to see if anything lives in waitForReply, if something does we do not process the command.
+ * Grab a user's input (process in-line a user reply). Next message from a user in channelId is ignored except by your callback.\
+ * The returned promise will either resolve with the user's unmodified message or reject if they canceled (using the cancel command, !~cancel).\
+ * Use this to wait for additional input from a user. When called, the user's next message will be resolved and processed by the calling code without any altering.\
+ * *We do split the user's message by white space into an array called 'args'\
+ * To prevent command processing from this user we calculate the SHA1 of the user's ID and channel's ID concatenated together and then add that to the waitForReply array.\
+ * When a normal message comes in, we always calculate this same SHA1 and check to see if anything lives in waitForReply, if something does we do not process the command.\
  * Since we do not process the message in any way, the bot's prefix is NOT required. The entirety of the message will be processed by your callback function.
  * 
- * @param {string} userID - Discord user ID of the person you're waiting for a reply from
- * @param {string} channelID - Discord channel ID you're waiting for a reply in
- * @param {Bismo.GetUserReplyOptions} options - Additional options passed to the Discord.MessageCollector
+ * @param {string} userId Discord user ID of the person you're waiting for a reply from
+ * @param {string} channelId Discord channel ID you're waiting for a reply in
+ * @param {BismoGetUserReplyOptions} options Additional options passed to the Discord.MessageCollector
  * 
  * @return {Promise<Discord.Message, Error>} Promise object that represents the user's reply.
  */
-Bismo.GetUserReply = function(userID, channelID, options) {
+Bismo.GetUserReply = function(userId, channelId, options) {
 	if (options == undefined)
 		options = {};
 
@@ -372,13 +370,13 @@ Bismo.GetUserReply = function(userID, channelID, options) {
 
 
 	return new Promise((resolve, reject) => {
-		let wFRID = crypto.createHash('sha1').update(userID + channel).digest('base64');
+		let wFRID = crypto.createHash('sha1').update(userId + channel).digest('base64');
 		lBismo.waitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
 
 		if (options.filter ==  undefined)
-			options.filter =  m => m.author.id === userID; // Sets our filter to only accept messages from the user with $ID
+			options.filter =  m => m.author.id === userId; // Sets our filter to only accept messages from the user with $ID
 
-		let collector = new Discord.MessageCollector(channelID, options.filter, options.options);
+		let collector = new Discord.MessageCollector(channelId, options.filter, options.options);
 		collector.on('collect', msg => { 
 			collector.stop(); // Stop collection
 
@@ -399,14 +397,14 @@ Bismo.GetUserReply = function(userID, channelID, options) {
 }
 
 /**
- * Synchronous wrapper for Bismo.GetUserReply(userID, channelID, options)
- * @param {string} userID - Discord user ID of the person you're waiting for a reply from
- * @param {string} channelID - Discord channel ID you're waiting for a reply in
- * @param {Bismo.GetUserReplyOptions} options - Additional options passed to the Discord.MessageCollector
- * @return {Discord.Message} message - The message object the user sent
+ * Synchronous wrapper for Bismo.GetUserReply(userId, channelId, options)
+ * @param {string} userId Discord user ID of the person you're waiting for a reply from
+ * @param {string} channelId Discord channel ID you're waiting for a reply in
+ * @param {Bismo.GetUserReplyOptions} options Additional options passed to the Discord.MessageCollector
+ * @return {Discord.Message} message The message object the user sent
  */
-Bismo.GetUserReplySync = async function(userID, channelID, options) {
-	return await Bismo.GetUserReply(userID, channelID, options);
+Bismo.GetUserReplySync = async function(userId, channelId, options) {
+	return await Bismo.GetUserReply(userId, channelId, options);
 }
 
 
@@ -430,8 +428,8 @@ Bismo.SaveGuilds = function() {
 
 /**
  * Returns a Discord Guild object for the guild with the id ID.
- * @param {string} ID - ID of the guild to get
- * @return {Discord.Guild} guild - Guild object
+ * @param {string} ID ID of the guild to get
+ * @return {?Discord.Guild} guild - Guild object
  */
 Bismo.GetDiscordGuildObject = function(ID) {
 	return lBismo.guildObjects[ID];
@@ -440,9 +438,9 @@ Bismo.GetDiscordGuildObject = function(ID) {
 
 /**
  * Creates a new Guild account
- * @param {string} ID - The guild ID you're adding
- * @param {Bismo.GuildAccountConstructorData} data - The data passed to the GuildAccount constructor (the guild's data)
- * @return {Bismo.GuildAccount | undefined} Either returns the guild account or undefined if no such guild with that ID exists.
+ * @param {string} ID The guild ID you're adding
+ * @param {Bismo.GuildAccountConstructorData} data The data passed to the GuildAccount constructor (the guild's data)
+ * @return {?GuildAccount} Either returns the guild account or undefined if no such guild with that ID exists.
  */
 Bismo.AddGuild = function(ID, data) {
 	// Check if this guild account exists
@@ -459,9 +457,9 @@ Bismo.AddGuild = function(ID, data) {
 
 	// Bismo.log(data);
 	if (data.name == undefined) // this guild doesn't actually exist.
-		return undefined;       
+		return undefined;	   
 
-	let gData = new GuildAccount(data);
+	let gData = new GuildAccount(data, Bismo);
 
 	lBismo.guildAccounts.push(gData);
 	Bismo.SaveGuilds();
@@ -470,8 +468,9 @@ Bismo.AddGuild = function(ID, data) {
 
 /**
  * Gets the Bismo Guild object (account)
- * @prama {string} ID - Guild ID to grab
- * @return {Bismo.GuildAccount} GuildAccount object
+ * @memberof Bismo
+ * @prama {string} ID Guild ID to grab
+ * @return {?GuildAccount} GuildAccount object
  */
 Bismo.GetBismoGuildObject = function(ID) {
 	for (var i = 0; i<lBismo.guildAccounts.length; i++)
@@ -482,7 +481,7 @@ Bismo.GetBismoGuildObject = function(ID) {
 
 /**
  * Removes a guild with ID from our guild account database (destroy the GuildAccount)
- * @prama {string} ID - Guild ID to remove
+ * @prama {string} ID Guild ID to remove
  */
 Bismo.RemoveGuild = function(ID) {
 	for (var i = 0; i<lBismo.guildAccounts.length; i++)
@@ -497,19 +496,19 @@ Bismo.RemoveGuild = function(ID) {
 
 /**
  * Get all guild member objects
- * @prama {string} guildID - Guild to get members from
+ * @prama {string} guildId Guild to get members from
  * @return {Discord.GuildMemberManager} All guild members
  */
-Bismo.GetGuildUsers = async function(guildID) {
-	return await Bismo.GetDiscordGuildObject(guildID).members.fetch();
+Bismo.GetGuildUsers = async function(guildId) {
+	return await Bismo.GetDiscordGuildObject(guildId).members.fetch();
 }
 /**
  * Get an array of user IDs within a guild
- * @param {string} guildID - Guild to get user information from
+ * @param {string} guildId Guild to get user information from
  * @return {string[]} Array of user IDs inside a guild
  */
-Bismo.GetGuildUserIDs = function(guildID) {
-	var users = Bismo.GetGuildUsers(guildID);
+Bismo.GetGuildUserIDs = function(guildId) {
+	var users = Bismo.GetGuildUsers(guildId);
 
 	var cleanUsers = []
 	for (var i = 0; i<users.length; i++)
@@ -523,13 +522,13 @@ Bismo.GetGuildUserIDs = function(guildID) {
 
 
 /**
- * Check to see if a userID is apart of a guild
- * @param {string} ID - UserID to check
- * @param {string} guildID - In this guild
+ * Check to see if a userId is apart of a guild
+ * @param {string} ID UserID to check
+ * @param {string} guildId In this guild
  * @return {boolean} Discord user is apart of a guild
  */
-Bismo.IsDiscordGuildMember = function(ID, guildID) {
-	var members = Bismo.GetGuildUserIDs(guildID);
+Bismo.IsDiscordGuildMember = function(ID, guildId) {
+	var members = Bismo.GetGuildUserIDs(guildId);
 	for (var i = 0; i<members.length; i++) {
 		if (members[i] == ID)
 			return true;
@@ -540,8 +539,8 @@ Bismo.IsDiscordGuildMember = function(ID, guildID) {
 
 /**
  * Get all channels in a particular guild
- * @param {string} ID - Guild to check
- * @param {string} [type] - Only return these types of channels
+ * @param {string} ID Guild to check
+ * @param {string} [type] Only return these types of channels
  * @return {Discord.Channel[]|Discord.VoiceChannel[]|Discord.TextChannel[]|Discord.StoreChannel[]|Discord.NewsChannel[]|array} Channels 
  */
 Bismo.GetGuildChannels = function(ID, type) {
@@ -560,45 +559,45 @@ Bismo.GetGuildChannels = function(ID, type) {
 	return neededChannels;
 }
 
-// Return the voice channel ID that user $userID is in on the guild $guildID
+// Return the voice channel ID that user $userId is in on the guild $guildId
 /**
  * Get the current voice channel a user is in within a guild
- * @param {string} guildID - The guild to check
- * @param {string} userID - The user to check
+ * @param {string} guildId The guild to check
+ * @param {string} userId The user to check
  * @return {Discord.VoiceChannel|undefined} - Voice channel that user is in
  */
-Bismo.GetCurrentVoiceChannel = function(guildID, userID) {
-	voiceChannels = Bismo.GetGuildChannels(guildID, "voice");
+Bismo.GetCurrentVoiceChannel = function(guildId, userId) {
+	voiceChannels = Bismo.GetGuildChannels(guildId, "voice");
 
 	for (var i = 0; i<voiceChannels.length; i++)
 	{   
 		var members = [...voiceChannels[i].members.values()];
 		for (var m = 0; m<members.length; m++)
-			if (members[m].id == userID)
+			if (members[m].id == userId)
 				return voiceChannels[i].id;
 	}
 
 	return undefined;
 }
 
-// Return the channel object for $channelID in guild $ID
+// Return the channel object for $channelId in guild $ID
 /**
  * Get the channel object of a channel in a guild
- * @param {string} ID - Channel is in this guild
- * @param {string} channelID - The channel ID to get
- * @return {Discord.TextChannel|Discord.VoiceChannel|Discord.NewsChannel|Discord.StoreChannel} Channel object
+ * @param {string} ID Channel is in this guild
+ * @param {string} channelId The channel ID to get
+ * @return {(Discord.TextChannel|Discord.VoiceChannel|Discord.NewsChannel|Discord.StoreChannel)} Channel object
  */
-Bismo.GetGuildChannelObject = function(ID,channelID) {
+Bismo.GetGuildChannelObject = function(ID,channelId) {
 	var g = Bismo.GetDiscordGuildObject(ID);
 	if(g.channels != undefined) {
 		// utilLog(g.channels)
 		var channels = [...g.channels.cache.values()]
-		// var channel = g.channels.get(channelID);
+		// var channel = g.channels.get(channelId);
 		// return channel;
 
 		for(var o = 0; o<channels.length; o++) {
 			if (channels[o]!=null) {
-				if (channels[o].id == channelID) {
+				if (channels[o].id == channelId) {
 					return channels[o];
 				}
 			}
@@ -608,67 +607,60 @@ Bismo.GetGuildChannelObject = function(ID,channelID) {
 	return undefined;
 }
 
-
-
-// ** Bot internal? API
-
-
-
-
 /**
- * @typedef {Bismo.GetReply} Bismo.CommandExecuteDataGetReply
+ * @typedef {BismoGetReply} BismoCommandExecuteDataGetReply
  * 
- * @param {string} prompt - The prompt to give users (We append the message `Type <options.cancelCommand> to cancel.`)
- * @param {Bismo.GetUserReplyOptions} options - Options passed to the GetUserReply() function
+ * @param {string} prompt The prompt to give users (We append the message `Type <options.cancelCommand> to cancel.`)
+ * @param {BismoGetUserReplyOptions} options Options passed to the GetUserReply() function
  */
 /**
  * @typedef {function} Reply
- * @param {string} msg - Message to send
+ * @param {string} msg Message to send
  * 
  */
 
 /**
- * @typedef {object} Bismo.CommandExecuteData
+ * @typedef {object} BismoCommandExecuteData
  * 
- * @property {Reply} Reply - Method used to send a reply back to the user (chat commands: sends a message in the same channel, slash commands: sends a follow up message to the user)
- * @property {Bismo.CommandExecuteDataGetReply} GetReply - This is a wrapper for the Bismo.getUserReply() function. Allows you to collect a single response from the author in chat
- * @property {string} alias - Which command was executed
- * @property {string[]} args - The parameters for the command (We automatically phrase this for you, in both chat and slash commands)
- * @property {Discord.TextChannel} channel - Channel object the message was sent over
- * @property {Discord.User} author - User object that executed the command
- * @property {string} authorID - User ID
- * @property {Discord.Guild} guild - Discord guild object
- * @property {string} guildID - Discord guild ID
- * @property {boolean} inGuild - Command executed inside a guild?
- * @property {Bismo.GuildAccount} guildAccount - Bismo guild account (special container for the guild, holds guild specific data)
- * @property {boolean} isInteraction - Whether or not this was an interaction (slash command / message interaction)
- * @property {Discord.Message} [message] - Message object (chat command)
- * @property {Discord.Interaction} [interaction] - Interaction object (slash command / message interaction)
+ * @property {Reply} Reply Method used to send a reply back to the user (chat commands: sends a message in the same channel, slash commands: sends a follow up message to the user)
+ * @property {BismoCommandExecuteDataGetReply} GetReply This is a wrapper for the Bismo.getUserReply() function. Allows you to collect a single response from the author in chat
+ * @property {string} alias Which command was executed
+ * @property {string[]} args The parameters for the command (We automatically phrase this for you, in both chat and slash commands)
+ * @property {Discord.TextChannel} channel Channel object the message was sent over
+ * @property {Discord.User} author User object that executed the command
+ * @property {string} authorID User ID
+ * @property {Discord.Guild} guild Discord guild object
+ * @property {string} guildId Discord guild ID
+ * @property {boolean} inGuild Command executed inside a guild?
+ * @property {GuildAccount} guildAccount Bismo guild account (special container for the guild, holds guild specific data)
+ * @property {boolean} isInteraction Whether or not this was an interaction (slash command / message interaction)
+ * @property {Discord.Message} [message] Message object (chat command)
+ * @property {Discord.Interaction} [interaction] Interaction object (slash command / message interaction)
  * 
  */
 
 /**
- * @typedef {object} Bismo.CommandOptions
+ * @typedef {object} BismoCommandOptions
  * 
- * @property {string} friendlyName - Friendly name of the command (defaults to provided alias)
- * @property {string} description - A description of the command (defaults to "No description provided")
- * @property {string} [helpMessage] - Message display in the bot's help command (/bismohelp) (defaults to description)
+ * @property {string} friendlyName Friendly name of the command (defaults to provided alias)
+ * @property {string} description A description of the command (defaults to "No description provided")
+ * @property {string} [helpMessage] Message display in the bot's help command (/bismohelp) (defaults to description)
  * 
- * @property {boolean} [slashCommand = false] - Registers the command as a slash command on Discord. (default: false)
- * @property {boolean} [chatCommand = true] - Command is executed via chat (with the appropriate listener cue (!) prefixing the command) (default: true)
+ * @property {boolean} [slashCommand = false] Registers the command as a slash command on Discord. (default: false)
+ * @property {boolean} [chatCommand = true] Command is executed via chat (with the appropriate listener cue (!) prefixing the command) (default: true)
  *
- * @property {JSON[]} [slashCommandOptions = []] - Slash commands allow you to specify 'options' (parameters). Use this to provide that information. You'll need to do everything manually.
- * @property {string} [ephemeral = true] - Slash commands only. If true only the author can see replies. (default: true)
+ * @property {JSON[]} [slashCommandOptions = []] Slash commands allow you to specify 'options' (parameters). Use this to provide that information. You'll need to do everything manually.
+ * @property {string} [ephemeral = true] Slash commands only. If true only the author can see replies. (default: true)
  * 
- * @property {boolean} [usersOnly = true] - Command only allow to be called by users (and not bots) (default: true)
- * @property {boolean} [directChannels = false] - Runs in direct message channels (not a guild) (default: false)
- * @property {boolean} [guildChannels = true] - Runs in a guild channel (default: true)
+ * @property {boolean} [usersOnly = true] Command only allow to be called by users (and not bots) (default: true)
+ * @property {boolean} [directChannels = false] Runs in direct message channels (not a guild) (default: false)
+ * @property {boolean} [guildChannels = true] Runs in a guild channel (default: true)
  * 
- * @property {string[]} [whitelistGuilds = undefined] - Only these guilds can run this command (array)
- * @property {string[]} [blacklistGuilds = undefined] - These guild CAN NOT run this command (array)
+ * @property {string[]} [whitelistGuilds = undefined] Only these guilds can run this command (array)
+ * @property {string[]} [blacklistGuilds = undefined] These guild CAN NOT run this command (array)
  * @property {string} [hidden = false] - Command not listed (default: false)
  * 
- * @property {boolean} [requireParams = true] - Parameters are required to run this command. If true and no parameters are provided we display the helpMessage (default: true). Note this has no effect on slash commands.
+ * @property {boolean} [requireParams = true] Parameters are required to run this command. If true and no parameters are provided we display the helpMessage (default: true). Note this has no effect on slash commands.
  * 
  * 
  */
@@ -681,9 +673,9 @@ awaitingRegister = []; // This array will contain the commands that need to be r
  * A command is either text based or a slash command. Text based commands are activated using a prefix or the bot's mention.
  * Upon a successful command execution, we pass a Bismo.CommandExecuteData object as the first argument to the handler function.
  * 
- * @param {string} alias - Command name, what users my type to execute your command
- * @param {function} handler - The function called whenever the command gets executed
- * @param {Bismo.CommandOptions} options - Command options
+ * @param {string} alias Command name, what users my type to execute your command
+ * @param {function} handler The function called whenever the command gets executed
+ * @param {BismoCommandOptions} options Command options
  * 
  * 
  */
@@ -817,8 +809,8 @@ Bismo.RegisterCommand = function(alias, handler, options) {
 /**
  * Gets a plugin's API
  * 
- * @param {string} name - Name of the plugin (either friendly name or package name)
- * @param {boolean} [mustBePackage = false] - Whether or not the name is the package name.
+ * @param {string} name Name of the plugin (either friendly name or package name)
+ * @param {boolean} [mustBePackage = false] Whether or not the name is the package name.
  * @return {function} Requested plugin API
  */
 Bismo.GetPlugin = function(name, mustBePackage) {
@@ -847,9 +839,9 @@ Bismo.GetPlugin = function(name, mustBePackage) {
 /**
  * Returns a plugin's method
  * 
- * @param {string} name - Name of the plugin
- * @param {string} method - Name of the method
- * @param {boolean} [mustBePackage = false] - Whether or not the name is the package name.
+ * @param {string} name Name of the plugin
+ * @param {string} method Name of the method
+ * @param {boolean} [mustBePackage = false] Whether or not the name is the package name.
  * @return {function} Requested plugin method
  */
 Bismo.GetPluginMethod = function(name, method, mustBePackage) {
@@ -861,12 +853,259 @@ Bismo.GetPluginMethod = function(name, method, mustBePackage) {
 }
 
 
-
+/**
+ * Get the Discord client instance Bismo uses
+ * @return {Discord.Client}
+ */
 Bismo.GetDiscordClient = function() {
 	return Client;
 }
 
 
+
+/*
+	
+	Permissions
+
+	Bismo Permission API calls are just proxy calls for the GuildAccount's permission functions
+*/
+
+Bismo.Permissions = {} // Container for permission API calls
+
+/**
+ * Takes string/GuildAccount and returns just GuildAccount
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string|GuildAccount} obj
+ * @returns {GuildAccount}
+ */
+function GetGuildObj(obj) {
+	if (typeof obj === "string")
+		return Bismo.GetBismoGuildObject(obj);
+	else
+		return obj;
+}
+
+/**
+ * Check if a user has a particular Bismo permission in a guild
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId The user we're checking against
+ * @param {string|GuildAccount} guild The guild we're checking against. (Can either be a string (guildId) or the GuildAccount)
+ * @param {string} permission The permission we're checking for
+ * @return {?boolean} Permission's value
+ */
+Bismo.Permissions.UserHasPermission = function(guild, userId, permission) {
+	let guildAccount = GetGuildObj(guild);
+	return guildAccount?.UserHasPermission(userId, permission);
+}
+
+/**
+ * Set a permission for a user in a guild
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId User ID we're adding the permission to
+ * @param {string|GuildAccount} guild The guild this applies to. (Can either be a string (guildId) or the GuildAccount)
+ * @param {string} permission The permission we're adding (Similar to Minecraft's permission system, wildcard/sub permissions allowed)
+ * @param {boolean} permissionValue What the permission will be set to
+ */
+Bismo.Permissions.SetUserPermission = function(guild, userId, permission, permissionValue) {
+	let guildAccount = GetGuildObj(guild);
+	guildAccount?.SetUserPermission(userId, permission, permissionValue);
+}
+
+/**
+ * Checks if the user exists in the permissions storage for the guild
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId
+ * @return {boolean}
+ */
+Bismo.Permissions.UserExists = function(guildId, userId) {
+	let guildAccount = GetGuildObj(guildId);
+	return guildAccount?.UserExists(userId);
+}
+
+/***
+ * Adds a role to a user
+ * 
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId User we're modifying
+ * @param {string} role The role we're adding to the user
+ */
+Bismo.Permissions.AddUserRole = function(guildId, userId, role) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.AddUserRole(userId, role);
+}
+
+/***
+ * Adds a role to a user
+ * Ignores if the user doesn't exist
+
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId User we're modifying
+ * @param {string} role The role we're removing from the user
+ */
+Bismo.Permissions.RemoveUserRole = function(guildId, userId, role) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.RemoveUserRole(userId, role);
+}
+
+/***
+ * Adds a role to a user
+ * Ignores if the user doesn't exist
+
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId User we're modifying
+ * @param {string} role The role we're adding to the user
+ */
+Bismo.Permissions.SetUserRoles = function(guildId, userId, roles) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.SetUserRoles(userId, roles);
+}
+
+/***
+ * Clear a user's roles (resets them)
+ * Ignores if the user doesn't exist
+
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId User we're modifying
+ */
+Bismo.Permissions.ClearUserRoles = function(guildId, userId) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.ClearUserRoles(userId);
+}
+
+/***
+ * Resets a user's permissions (just the permissions)
+ * Ignores if the user doesn't exist
+
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId User we're resetting
+ */
+Bismo.Permissions.ClearUserPermissions = function(guildId, userId) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.ClearUserPermissions(userId);
+}
+
+/**
+ * Removes a user from the list of users in permission storage
+ * This clears their roles and permissions and removes any reference to them
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId
+ */
+Bismo.DeleteUserPermissions = function(guildId, userId) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.DeleteUserPermissions(userId);
+}
+
+/**
+ * Checks if a role is defined in the guild
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} role
+ * @returns {boolean}
+ */
+Bismo.Permissions.RoleExists = function(guildId, role) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.RoleExists(role);
+}
+
+/**
+ * Sets a permission in a guild role
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} role Role name
+ * @param {string} permission
+ * @param {boolean} value
+ */
+Bismo.Permissions.SetRolePermission = function(guildId, role, permission, value) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.SetRolePermission(role, permission, value);
+}
+
+/**
+ * Removes a permission from a guild role
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} role
+ * @param {string} permission The permission we're removing
+ * @param {boolean} includingChildren Whether or not we also remove all children of `permission` (rather than that explicit permission)
+ * @returns {boolean} Removed permissions (false just means they were never set)
+ */
+Bismo.Permissions.RemoveRolePermission = function(guildId, role, permission, includingChildren) {
+	let guildAccount = GetGuildObj(guildId);
+	return guildAccount?.RemoveRolePermission(role, permission, includingChildren);
+}
+
+/**
+ * Rename a guild permission role
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} currentName Role's current name
+ * @param {string} newName Role's new name
+ */
+Bismo.Permissions.RenameRole = function(guildId, currentName, newName) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.RenameRole(currentName, newName);
+}
+
+/**
+ * Delete a role from the guild
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} role
+ */
+Bismo.Permissions.DeleteRole = function(guildId, role) {
+	let guildAccount = GetGuildObj(guildId);
+	guildAccount?.DeleteRole(role);
+}
+
+// Raw permissions
+// I do not know why this is included, especially since all you have to do is grab the GuildAccount, but here it
+
+/**
+ * Get raw user permissions
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId
+ * @return {object} permissions dictionary (`{ "bismo.sample.permission": false }`)
+ */
+Bismo.Permissions.GetRawUserPermissions = function(guildId, userId) {
+	if (typeof userId !== "string")
+		throw new TypeError("userId expected string got " + (typeof userId).toString());
+	let guildAccount = GetGuildObject(guildId);
+	if (guildAccount?.permissions?.users == undefined)
+		return undefined;
+	return guildAccount.permissions.users[userId]?.permissions;
+}
+/**
+ * Get raw user roles
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId
+ * @return {object} permissions dictionary (["RoleName","AnotherOne"])
+ */
+Bismo.Permissions.GetRawUserRoles= function(guildId, userId) {
+	if (typeof userId !== "string")
+		throw new TypeError("userId expected string got " + (typeof userId).toString());
+	let guildAccount = GetGuildObject(guildId);
+	if (guildAccount?.permissions?.users == undefined)
+		return undefined;
+	return guildAccount.permissions.users[userId]?.roles;
+}
+/**
+ * Get raw role
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {sting} role
+ * @return {object} permissions dictionary (`{ name: RoleName, permissions: {} }`)
+ */
+Bismo.Permissions.GetRawRole = function(guildId, role) {
+	if (typeof role !== "string")
+		throw new TypeError("role expected string got " + (typeof role).toString());
+	let guildAccount = GetGuildObject(guildId);
+	if (guildAccount?.permissions?.roles == undefined)
+		return undefined;
+	return guildAccount.permissions.roles[role];
+}
+/**
+ * Get raw permissions
+ * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @return {object} permissions dictionary (`{ roles: {}, users: {} }`)
+ */
+Bismo.Permissions.GetRaw = function(guildId) {
+	let guildAccount = GetGuildObject(guildId);
+	return guildAccount?.permissions;
+}
 
 
 
@@ -900,7 +1139,7 @@ for (var i = 0; i<dirs.length; i++) {
 
 				if (plugin.manifest.version == null)
 					plugin.manifest.version = 1;
-				if (plugin.manifest.targetAPIVersion != lBismo.apiVersion)
+				if (plugin.manifest.targetAPIVersion != lBismo.apiVersion && plugin.manifest.targetAPIVersion != undefined)
 					Bismo.log(`[B] [31mLoading (outdated) plugin (${i + 1}/${dirs.length}) ${name}`); // Hey, we're loading! But very outdated!
 				else
 					Bismo.log(`[B] Loading plugin (${i + 1}/${dirs.length}) ${name}`); // Hey, we're loading!
@@ -1181,7 +1420,7 @@ Client.on("messageCreate", message => {
 		// // Emotes
 		// if (message.content.startsWith("<:") && message.content.endsWith(">")) {
 		//  if (message.content.startsWith("<:dawson:")) {
-		//      message.delete().then(o_o=>{ message.channel.send("", {files: ["https://s.cnewb.co/dawson.png"]}) });
+		//	  message.delete().then(o_o=>{ message.channel.send("", {files: ["https://s.cnewb.co/dawson.png"]}) });
 		//  }
 
 		//  return;
@@ -1192,12 +1431,12 @@ Client.on("messageCreate", message => {
 
 
 		// Grab required data
-		var guildID = message.author.id;
+		var guildId = message.author.id;
 		if (message.guild!=undefined)
-			guildID = message.guild.id;
+			guildId = message.guild.id;
 
 		var myMention = "<@!" + Client.user.id + ">";
-		var guildData = Bismo.GetBismoGuildObject(guildID);
+		var guildData = Bismo.GetBismoGuildObject(guildId);
 
 
 		// Only listen to the guild's prefix or my mention
@@ -1238,10 +1477,10 @@ Client.on("messageCreate", message => {
 			channel: message.channel,
 			author: message.author,
 			authorID: message.author.id,
-			guildID: guildID,
-			guild: Bismo.GetDiscordGuildObject(guildID),
+			guildId: guildId,
+			guild: Bismo.GetDiscordGuildObject(guildId),
 			inGuild: (message.guild != undefined)? true : false,
-			guildAccount: Bismo.GetBismoGuildObject(guildID),
+			guildAccount: Bismo.GetBismoGuildObject(guildId),
 			isInteraction: false,
 		}
 
@@ -1288,7 +1527,7 @@ Client.on("messageCreate", message => {
 				if (cmd.whitelistGuilds != undefined) {
 					var whitelisted = false;
 					for (var i = 0; i<cmd.whitelistGuilds.length; i++) {
-						if (cmd.whitelistGuilds[i] == guildID) {
+						if (cmd.whitelistGuilds[i] == guildId) {
 							whitelisted = true;
 							break; // return != break
 						}
@@ -1301,7 +1540,7 @@ Client.on("messageCreate", message => {
 				if (cmd.blacklistGuilds != undefined) {
 					var blacklisted = false;
 					for (var i = 0; i<cmd.blacklistGuilds.length; i++) {
-						if (cmd.blacklistGuilds[i] == guildID) {
+						if (cmd.blacklistGuilds[i] == guildId) {
 							blacklisted = true;
 							break;
 						}
@@ -1369,7 +1608,7 @@ Client.on('interactionCreate', async interaction => { // async?
 			alias: interaction.commandName,
 			author: userObject,
 			authorID: authorID,
-			guildID: interaction.guild_id,
+			guildId: interaction.guild_id,
 			guild: Bismo.GetDiscordGuildObject(interaction.guildId),
 			inGuild: (interaction.guildId != undefined)? true : false,
 			guildAccount: Bismo.GetBismoGuildObject(interaction.guildId),
@@ -1521,7 +1760,7 @@ Client.on("ready", async () => {
 
 	if (awaitingRegister.length>=1)
 		for (var i = 0; i<awaitingRegister.length; i++) {
-			continue; // Registered for the day
+			// continue; // Registered for the day
 			let alias = awaitingRegister[i];
 			var cmd = Commands.get(alias);
 			if (cmd != undefined) {
@@ -1551,7 +1790,7 @@ Client.on("ready", async () => {
 									description: cmd.description,
 									options: cmd.slashCommandOptions,
 								};
-                                await Discord.Rest.post(Routes.applicationGuildCommands(Client.user.id, keys[o]), { body: body });
+								await Discord.Rest.post(Routes.applicationGuildCommands(Client.user.id, keys[o]), { body: body });
 								// Client.api.applications(Client.user.id).guilds(keys[o]).commands.post({data: {
 								// 	name: alias,
 								// 	description: cmd.description,
@@ -1619,7 +1858,7 @@ Client.on("ready", async () => {
 		}
 
 		for (var i = 0; i<guilds.length; i++) {
-			let guild = new GuildAccount(guilds[i]);
+			let guild = new GuildAccount(guilds[i], Bismo);
 			if (guild != undefined)
 				lBismo.guildAccounts.push(guild);
 		}
@@ -1639,8 +1878,8 @@ Client.on("ready", async () => {
 
 					// Setup the guild
 					var BismoPacket = {
-						gID: gID, // The guild ID
-						guild: gD, // Discord guild object
+						guildId: gID, // The guild ID
+						discordGuildObject: gD, // Discord guild object
 						bismoGuildObject: lBismo.guildAccounts[i], // The guild account
 					};
 					/**
@@ -1648,9 +1887,9 @@ Client.on("ready", async () => {
 					 * 
 					 * @event Bismo.Bot#guildDiscovered
 					 * @type {object}
-					 * @property {string} guildID - ID of the guild discovered
+					 * @property {string} guildId - ID of the guild discovered
 					 * @property {Discord.Guild} guild - Discord guild object of discovered guild
-					 * @property {Bismo.GuildAccount} bismoGuildObject - Bismo GuildAccount object of discovered guild
+					 * @property {GuildAccount} bismoGuildObject - Bismo GuildAccount object of discovered guild
 					 */
 					Bismo.Events.discord.emit('guildDiscovered', BismoPacket);
 					loaded++;

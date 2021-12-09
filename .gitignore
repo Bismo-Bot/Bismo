@@ -1,9 +1,6 @@
-
-node_modules/
-plugins/
-config.json
-config*.json
-accounts.json
-guilds.json
-Data/
 .vs/
+Data/
+node_modules/
+Plugins/
+Config*.json
+Guilds.json
