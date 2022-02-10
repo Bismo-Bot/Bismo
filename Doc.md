@@ -161,9 +161,44 @@ Returns a promise, resolves to the contents of `path` as an object. Rejects if `
 
 
 
-### Intents
+
+### InteractionManager:
+The intent manager is meant to aid in adding and removing slash (application) commands, in addition to message and user commands.
+
+Intents: 
 By default we load a few intents. It's frowned upon to load _every_ intent, so hand select the ones you think you'll need. The defaults should work fine for anyone.\
 You can control which intents are included by searching for `Discord.Intents.FLAGS.*` in the `bismo.js` file
+
+
+
+`UpdateCache()`: Updates the current list of application commands registered with Discord\
+`IsGlobalCommand(name[, updateCache = false])`: Checks to see if the command `name` (string) is registered on Discord. `updateCache` forces a cache update\
+`IsGlobalCommands(names[, updateCache = false])`: Checks to see if the commands `names[]` (string array) is registered on Discord. `updateCache` forces a cache update\
+`IsGuildCommand(name[, guildId = undefined, updateCache = false])`: Checks to see if the command `name` is registered on Discord with the guild(s) `guildId`.\
+_if string array of guild Ids is provided, we return an array of guild Ids which have this command_.\
+If no guildId passed, we return the guilds this command is register in.
+
+`IsGuildCommands(names[, guildId = undefined, updateCache = false])`:  Same as `IsGuildCommands(names, guildId, updateCache)` except for multiple commands\
+
+`UnregisterGlobalCommand(name)`: Unregister one or more application command(s) from the global commands on Discord. `name` is either a string or string[].\
+`UnregisterGuildCommand(name[, guildId])`: Unregister one or more application command(s) from a specific guild (or guilds if string array passed).\
+`name` is either a string or a string[], same for `guildId`.\
+If `guildId` is undefined, we remove the command from all registered guilds.
+
+`RegisterGlobalCommand(commandData[, onlyGlobal = false, force = false])`: Register a discordjs.ApplicationCommand (or commands if ApplicationCommand array passed) globally on Discord.\
+If `onlyGlobal`, unregister that command (it's alias) from any guilds.\
+`force` will force the registration even if the command is already registered. Notice this will count against the daily limit
+
+`RegisterGuildCommand(commandData, guildId[, onlyThisGuild = false, force = false])`: Register a discordjs.ApplicationCommand, or commands, on a specific guild (or multiple guilds if `guildId` is a string array).\
+`commandData` can be a string or string[].\
+`guildId` can be a string or string[] (representing a or multiple guild IDs).\
+`onlyThisGuild` if `true` then only the guild(s) provided will have the command(s) available to them. (we unregister the command(s) globally and from other guilds IF they're not passed with guildId). 
+
+`RemoveStaleCommands([inGlobal = true, inGuilds = true])`: Unregister commands that this InteractionManager instance did not register itself (stale commands).\
+if `inGlobal` is true, then any application command register on Discord globally will be remove unless our instance registered it (via `.RegisterGlobalCommand()`).\
+if `inGuilds` is true, then the same as `inGlobal` takes place, but we do it for each guild.\
+This command is good to run after startup to act as garbage collection for old application commands that are not used.\
+You _should not_ run this periodically _if_ commands are registered via your instance of InteractionManager. Do so is just a waste.
 
 
 

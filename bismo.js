@@ -290,6 +290,7 @@ const { Routes } = require("discord-api-types/v9");
 
 const GuildAccount = require('./Support/GuildAccount');
 const ArgumentParser = require('./Support/ArgumentParser');
+const InteractionManager = require('./Support/InteractionManager');
 // Setup
 
 // Load and decrypt the config file (if on Windows)
@@ -306,6 +307,8 @@ var Commands = new Map();
 /*  Bismo API  */
 
 //### Begin Bismo public API
+
+Bismo.InteractionManager = new InteractionManager(Client, Config.Discord.token);
 
 // Deprecated.
 // Use this to wait for additional input from a user. When called, the user ($ID)'s next message will be sent straight to the callback function. We do not process the next message from user $ID (as a command or anything else)
@@ -421,7 +424,7 @@ Bismo.SaveGuilds = function() {
 		CleanGuilds[i] = lBismo.guildAccounts[i].GetSterile();
 	}
 
-	writeJSONFileSync('./Data/Guilds.json', JSON.stringify(CleanGuilds));
+	writeJSONFileSync('./Data/Guilds.json', CleanGuilds);
 	dlog("Guild data saved.");
 }
 
@@ -757,41 +760,18 @@ Bismo.RegisterCommand = function(alias, handler, options) {
 
 		// Add the slash command (if requested)
 		if (options.slashCommand) {
+			let body = {
+				name: alias,
+				description: options.description,
+				type: "CHAT_INPUT",
+				options: options.slashCommandOptions,
+			}
+
 			if (Client.user != undefined) {
 				if (options.whitelistGuilds) {
-					for (var i = 0; i<options.whitelistGuilds.length; i++) { // Only add the command to guilds that are allowed to use the command ;P
-						try {
-							// Client.api.applications(Client.user.id).guilds(options.whitelistGuilds[i]).commands.post({data: {
-							// 	name: alias,
-							// 	description: options.description,
-							// 	options: options.slashCommandOptions,
-							// }})
-							Discord.Rest.post(Routes.applicationGuildCommands(Client.user.id, options.whitelistGuilds[i]), { body: {
-								name: alias,
-								description: options.description,
-								options: options.slashCommandOptions,
-							} });
-						} catch(e) {
-							// failed
-							// console.log(e)
-							console.error("[B] Failed to register slash command.");
-						}
-					}
+					Bismo.InteractionManager.RegisterGuildCommand(body, options.whitelistGuilds, true, true)
 				} else {
-					Discord.Rest.post(Routes.applicationCommands(Client.user.id), { body: {
-						name: alias,
-						description: options.description,
-						options: options.slashCommandOptions,
-					} } );
-					
-					// d.js v12
-					// Client.api.applications(Client.user.id).commands.post({data: {
-					// 	name: alias,
-					// 	description: options.description,
-					// 	options: options.slashCommandOptions,
-					// }}).error(()=> {
-					// 	console.log("[B] Failed to register slash command.");
-					// });;
+					Bismo.InteractionManager.RegisterGlobalCommand(body, null, true)
 				}
 			} else {
 				awaitingRegister[awaitingRegister.length] = alias;
@@ -1592,13 +1572,15 @@ Client.on('interactionCreate', async interaction => { // async?
 		if (interaction.type != "APPLICATION_COMMAND") // 1 = ping, 2 = slash command, 3 = message component, 4 = application command autocomplete ?
 			return;
 
+		await interaction.deferReply(); // This sends "is thinking" as the first response. This allows the user to see that the command was received.
+		// This also allows us 15 minutes to reply rather than 3 seconds
+
 		if (interaction.options == undefined)
 			return;
 
 		let cmd = Commands.get(interaction.commandName);
 
-		await interaction.deferReply(); // This sends "is thinking" as the first response. This allows the user to see that the command was received.
-		// This also allows us 15 minutes to reply rather than 3 seconds
+		
 
 		var authorID = "";
 		if (interaction.member != undefined)
@@ -1718,12 +1700,13 @@ Client.on('interactionCreate', async interaction => { // async?
 			})().catch((err) => {
 				console.error("[B] Command (interaction) error, cmd: " + interaction.data.name);
 				dlog("[B-e] Trace: " + err.stack);
-				commandData.Reply("O_O !! Command fault, unexpected exception.")
+				commandData.Reply("O_O !! Command fault, unhandled exception.")
 				return;
 			});
 
 		} else {
 			// unknown command, unregister
+			cmd = { ephemeral: true };
 			commandData.Reply("O_O !! Command fault, stagnant (unknown) command.");
 			return;
 		}
@@ -1757,76 +1740,48 @@ Client.on("ready", async () => {
 	// Here we can load the guilds up (one-by-one)
 
 	// Register the slash commands now
-	Client.api.applications(Client.user.id).commands.put({data: []}); // clear the commands first
+	// Client.api.applications(Client.user.id).commands.put({data: []}); // clear the commands first
 	// We should check to see if our commands actually updated or not. If they did: remove/add as needed. If they did not: do nothing.
+	Bismo.InteractionManager.Unlock(); // Unlock the interaction manager
+	Bismo.InteractionManager.UpdateCache().then(async function () {
+		if (awaitingRegister.length >= 1)
+			for (var i = 0; i < awaitingRegister.length; i++) { // For each slash command needing to be registered.
+				let alias = awaitingRegister[i];
+				let cmd = Commands.get(alias);
+				if (!cmd.slashCommand)
+					continue;
 
-	
-
-	if (awaitingRegister.length>=1)
-		for (var i = 0; i<awaitingRegister.length; i++) {
-			continue; // Registered for the day
-			let alias = awaitingRegister[i];
-			var cmd = Commands.get(alias);
-			if (cmd != undefined) {
-				try {
-					if (cmd.whitelistGuilds != undefined) {
-						for (var b = 0; b<cmd.whitelistGuilds.length; b++) { // Only add the command to guilds that are allowed to use the command ;P
-							// lol used i and not b, screwed the loader! hahaha whoops ....
-							// Client.api.applications(Client.user.id).guilds(cmd.whitelistGuilds[b]).commands.post({data: {
-							// 	name: alias,
-							// 	description: cmd.description,
-							// 	options: cmd.slashCommandOptions,
-							// }}).error(()=> {
-							// 	console.log("[B] Failed to register `" + alias + "`");
-							// });
-							await Discord.Rest.post(Routes.applicationGuildCommands(Client.user.id, cmd.whitelistGuilds[b]), { body: {
-								name: alias,
-								description: cmd.description,
-								options: cmd.slashCommandOptions,
-							} });
-						}
-					} else {
-						if (debug) {
-							let keys = ['756391901099458600']; // Debug clan
-							for (var o = 0; o < keys.length; o++) {
-								let body = {
-									name: alias,
-									description: cmd.description,
-									options: cmd.slashCommandOptions,
-								};
-								await Discord.Rest.post(Routes.applicationGuildCommands(Client.user.id, keys[o]), { body: body });
-								// Client.api.applications(Client.user.id).guilds(keys[o]).commands.post({data: {
-								// 	name: alias,
-								// 	description: cmd.description,
-								// 	options: cmd.slashCommandOptions,
-								// }}).error(()=> {
-								// console.log("[B] Failed to register `" + alias + "`");
-								//});
-							}
+				let body = {
+					name: alias,
+					description: cmd.description,
+					type: "CHAT_INPUT",
+					options: cmd.slashCommandOptions,
+				};
+				if (cmd != undefined) {
+					try {
+						if (cmd.whitelistGuilds != undefined) {
+							await Bismo.InteractionManager.RegisterGuildCommand(body, cmd.whitelistGuilds, true);
 						} else {
-							// Register command globally
-							await Discord.Rest.post(Routes.applicationCommands(Client.user.id), { body: {
-								name: alias,
-								description: cmd.description,
-								options: cmd.slashCommandOptions,
-							} } );
-							// Client.api.applications(Client.user.id).commands.post({data: {
-							// 	name: alias,
-							// 	description: cmd.description,
-							// 	cmd: cmd.slashCommandOptions,
-							// }}).error(()=> {
-							// 	console.log("[B] Failed to register `" + alias + "`");
-							// });
+							if (debug) {
+								let guilds = ['756391901099458600']; // Debug clan
+								await Bismo.InteractionManager.RegisterGuildCommand(body, guilds, true);
+							} else {
+								// Register command globally
+								await Bismo.InteractionManager.RegisterGlobalCommand(body);
+							}
 						}
+						console.log("[B] Registered `" + alias + "`");
+					} catch (e) {
+						// failed
+						// console.log(e)
+						console.log("[B] Failed to register `" + alias + "`");
 					}
-					console.log("[B] Registered `" + alias + "`");
-				} catch(e) {
-					// failed
-					// console.log(e)
-					console.log("[B] Failed to register `" + alias + "`");
 				}
 			}
-		}
+
+		Bismo.InteractionManager.RemoveStaleCommands(); // Remove leftover commands
+	}); // Register commands
+
 
 	fs.readFile('./Data/Guilds.json', 'utf8', (err, data) => {
 		if (err) {
@@ -1924,7 +1879,7 @@ Client.on("ready", async () => {
 	There's no reason to remove them, but go for it I guess.
 */
 Bismo.RegisterCommand("version", message => { // Current bot version
-	message.Reply("Running  _Bismo_  version `" + Bismo.version + "` "
+	message.Reply("Running  _Bismo_  version `" + Bismo.Version + "` "
 		+ ((Bismo.debugMode)? "\n`{*debug*, isWin?" + Bismo.isWindows + "}`" : ""));
 }, {
 	description: "Reveal which version of Bismo is under the hood.",
@@ -1944,8 +1899,5 @@ Bismo.RegisterCommand("ping", message => {
 })
 
 // Okay, we're ready to "start"
-
-
 // go for launch
-Discord.Rest = new REST({ version: '9' }).setToken(Config.Discord.token);
 Client.login(Config.Discord.token);

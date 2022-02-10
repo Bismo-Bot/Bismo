@@ -1,12 +1,5 @@
 To do's:
 
-Immediate:
-Bismo Guild permissions
-
-
-Short-term:
-Register interactions (slash commands) that are not currently registered
-Unregister interactions that are no longer needed
 
 Buttons and select menus support
 
