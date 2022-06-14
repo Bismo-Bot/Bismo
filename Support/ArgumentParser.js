@@ -78,7 +78,7 @@ class ArgumentParser {
 							inArgument = false;
 							if (value.toLowerCase().startsWith("false")) {
 								value = false;
-							} else if (value.toLowerCase().startsWith("false")) {
+							} else if (value.toLowerCase().startsWith("true")) {
 								value = true;
 							} else if (!isNaN(value)) {
 								// A number
