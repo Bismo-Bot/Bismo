@@ -1,6 +1,19 @@
+# Dev items
 .vs/
-Data/
 node_modules/
-Plugins/
+
+
+# =======
+# Plugins (use the common plugins repo)
+# =======
+Plugins/*
+# Essentials
+!Plugins/BCommands/
+!Plugins/PermissionManager/
+
+# =======
+# Data
+# =======
+Data/
 Config*.json
 Guilds.json
