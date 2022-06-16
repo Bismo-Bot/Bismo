@@ -12,8 +12,6 @@ const { Routes } = require("discord-api-types/v9");
 const { default: Command } = require("./Command");
 
 
-var Client;
-
 /**
  * Bismo Interaction Manager
  * 
@@ -137,7 +135,7 @@ class InteractionManager {
 	 */
 	IsGlobalCommands(names, updateCache) {
 		if (Array.isArray(names)) {
-			if (!name.every(i => (typeof i === "string")))
+			if (!names.every(i => (typeof i === "string")))
 				throw new TypeError("name expected string[] got ?[]");
 			
 			if (typeof names === "string") {
