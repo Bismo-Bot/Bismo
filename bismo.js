@@ -33,16 +33,29 @@ Error.stackTraceLimit = 3;
 // This is the public API given to the plug-ins
 const Bismo = {}
 
+process.Bismo = Bismo;
+
 Bismo.Version = new Version(0,3,0,(debug)?"debug":"release","3");;
 Bismo.isWindows = isWin;
 Bismo.debugMode = debug;
 
+/**
+ * Internal Bismo data
+ * @type {object} lBismo
+ * @property {GuildAccount[]} GuildAccounts Guild account array
+ */
 const lBismo = {
-	config: {},
-	guildAccounts: [],
-	userAccounts: [],
-	waitForReply: [],
+	GuildAccounts: {},
+	WaitForReply: [],
+	VoiceConnections: {},
 } // This is our private API given to no-one.
+
+/**
+ * VoiceChannelID -> AudioPlayerQueue[focusLevel] -> (array of) BismoAudioPlayerContainer
+ * @type {object} lBismo.AudioPlayerQueues
+ */
+lBismo.AudioPlayerQueues = new Map();
+
 
 const ogLog = console.log;
 /***
@@ -262,6 +275,8 @@ function readJSONFileSync(path) {
 
 // Discord.JS
 const Discord = require('discord.js');
+const DiscordVoice = require("@discordjs/voice");
+
 const Client = new Discord.Client({
 	intents: [ 	
 				Discord.Intents.FLAGS.GUILDS,
@@ -278,19 +293,18 @@ const Client = new Discord.Client({
 				//Discord.Intents.FLAGS.GUILD_MESSAGE_TYPING,
 				Discord.Intents.FLAGS.DIRECT_MESSAGES,
 				Discord.Intents.FLAGS.DIRECT_MESSAGE_REACTIONS,
+				Discord.Intents.FLAGS.GUILD_VOICE_STATES
 				//Discord.Intents.FLAGS.DIRECT_MESSAGE_TYPING
 			]
 
 	// intents: [ Discord.Intents.ALL ] // Removed in discord.js v13 because you shouldn't do that
 });
-const { REST } = require("@discordjs/rest");
-const { Routes } = require("discord-api-types/v9");
-
 
 
 const GuildAccount = require('./Support/GuildAccount');
 const ArgumentParser = require('./Support/ArgumentParser');
 const InteractionManager = require('./Support/InteractionManager');
+const VoiceManager = require('./Support/VoiceManager');
 // Setup
 
 // Load and decrypt the config file (if on Windows)
@@ -316,7 +330,7 @@ Bismo.InteractionManager = new InteractionManager(Client, Config.Discord.token);
 // Note, this command DOES NOT require the user to type the bot's prefix, (! or its mention) for us to process it. The user just types the cancel command in itsentirety.
 Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter, options) { // userId, reply channel, cancel command (to stop listening), callback function (when reply got), filter, options
 	var wFRID = crypto.createHash('sha1').update(id + channel).digest('base64');
-	lBismo.waitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
+	lBismo.WaitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
 
 	if (filter ==  undefined)
 		filter =  m => m.author.id === id; // Sets our filter to only accept messages from the user with $ID
@@ -328,9 +342,9 @@ Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter
 	collector.on('collect', msg => { 
 		collector.stop(); // Stop collection
 
-		var i = lBismo.waitForReply.indexOf(wFRID);
+		var i = lBismo.WaitForReply.indexOf(wFRID);
 		if (i>-1) {
-			lBismo.waitForReply.splice(i,1); // Remove user from WaitForReply list
+			lBismo.WaitForReply.splice(i,1); // Remove user from WaitForReply list
 		}
 		if (msg.content === cancelCommand) {
 			channel.send({content: "Canceled."})
@@ -355,8 +369,8 @@ Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter
  * The returned promise will either resolve with the user's unmodified message or reject if they canceled (using the cancel command, !~cancel).\
  * Use this to wait for additional input from a user. When called, the user's next message will be resolved and processed by the calling code without any altering.\
  * *We do split the user's message by white space into an array called 'args'\
- * To prevent command processing from this user we calculate the SHA1 of the user's ID and channel's ID concatenated together and then add that to the waitForReply array.\
- * When a normal message comes in, we always calculate this same SHA1 and check to see if anything lives in waitForReply, if something does we do not process the command.\
+ * To prevent command processing from this user we calculate the SHA1 of the user's ID and channel's ID concatenated together and then add that to the WaitForReply array.\
+ * When a normal message comes in, we always calculate this same SHA1 and check to see if anything lives in WaitForReply, if something does we do not process the command.\
  * Since we do not process the message in any way, the bot's prefix is NOT required. The entirety of the message will be processed by your callback function.
  * 
  * @param {string} userId Discord user ID of the person you're waiting for a reply from
@@ -375,7 +389,7 @@ Bismo.GetUserReply = function(userId, channelId, options) {
 
 	return new Promise((resolve, reject) => {
 		let wFRID = crypto.createHash('sha1').update(userId + channel).digest('base64');
-		lBismo.waitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
+		lBismo.WaitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
 
 		if (options.filter ==  undefined)
 			options.filter =  m => m.author.id === userId; // Sets our filter to only accept messages from the user with $ID
@@ -384,9 +398,9 @@ Bismo.GetUserReply = function(userId, channelId, options) {
 		collector.on('collect', msg => { 
 			collector.stop(); // Stop collection
 
-			let i = lBismo.waitForReply.indexOf(wFRID);
+			let i = lBismo.WaitForReply.indexOf(wFRID);
 			if (i>-1)
-				lBismo.waitForReply.splice(i,1); // Remove user from WaitForReply list
+				lBismo.WaitForReply.splice(i,1); // Remove user from WaitForReply list
 			
 			if (msg.content === cancelCommand) {
 				channel.send({content: "Canceled."})
@@ -420,8 +434,8 @@ Bismo.GetUserReplySync = async function(userId, channelId, options) {
 Bismo.SaveGuilds = function() {
 	// Clear runtime settings, convert to JSON, save file
 	var CleanGuilds = [];
-	for (var i = 0; i<lBismo.guildAccounts.length; i++) {
-		CleanGuilds[i] = lBismo.guildAccounts[i].GetSterile();
+	for (const guildAccount in lBismo.GuildAccounts) {
+		CleanGuilds[i] = lBismo.GuildAccounts[guildAccount].GetSterile();
 	}
 
 	writeJSONFileSync('./Data/Guilds.json', CleanGuilds);
@@ -432,32 +446,30 @@ Bismo.SaveGuilds = function() {
 
 /**
  * Returns a Discord Guild object for the guild with the id ID.
- * @param {string} ID ID of the guild to get
+ * @param {string} guildID ID of the guild to get
  * @return {?Discord.Guild} guild - Guild object
  */
-Bismo.GetDiscordGuildObject = function(ID) {
-	return lBismo.guildObjects[ID];
+Bismo.GetDiscordGuildObject = function(guildID) {
+	return lBismo.GuildObjects[guildID];
 }
 
 
 /**
  * Creates a new Guild account
- * @param {string} ID The guild ID you're adding
+ * @param {string} guildID The guild ID you're adding
  * @param {Bismo.GuildAccountConstructorData} data The data passed to the GuildAccount constructor (the guild's data)
  * @return {?GuildAccount} Either returns the guild account or undefined if no such guild with that ID exists.
  */
-Bismo.AddGuild = function(ID, data) {
+Bismo.AddGuild = function(guildID, data) {
 	// Check if this guild account exists
-	for(var i = 0; i<lBismo.guildAccounts.length; i++)
-		if (lBismo.guildAccounts[i] != null)
-			if (lBismo.guildAccounts[i].id == ID)
-				return lBismo.guildAccounts[i];
+	if (lBismo.GuildAccounts[guildID].id == guildID)
+		return lBismo.GuildAccounts[guildID];
 
 	if (data==null)
 		data = {}
 
-	data.id = ID;
-	data.name = Bismo.GetDiscordGuildObject(ID).name;
+	data.id = guildID;
+	data.name = Bismo.GetDiscordGuildObject(guildID).name;
 
 	// Bismo.log(data);
 	if (data.name == undefined) // this guild doesn't actually exist.
@@ -465,7 +477,7 @@ Bismo.AddGuild = function(ID, data) {
 
 	let gData = new GuildAccount(data, Bismo);
 
-	lBismo.guildAccounts.push(gData);
+	lBismo.GuildAccounts[guildID] = gData;
 	Bismo.SaveGuilds();
 	return gData;
 }
@@ -473,27 +485,21 @@ Bismo.AddGuild = function(ID, data) {
 /**
  * Gets the Bismo Guild object (account)
  * @memberof Bismo
- * @prama {string} ID Guild ID to grab
+ * @prama {string} guildID Guild ID to grab
  * @return {?GuildAccount} GuildAccount object
  */
-Bismo.GetBismoGuildObject = function(ID) {
-	for (var i = 0; i<lBismo.guildAccounts.length; i++)
-		if (lBismo.guildAccounts[i] != null)
-			if (lBismo.guildAccounts[i].id == ID)
-				return lBismo.guildAccounts[i];
+Bismo.GetBismoGuildObject = function(guildID) {
+	if (lBismo.GuildAccounts[guildID].id == guildID)
+		return lBismo.GuildAccounts[guildID];
 }
 
 /**
  * Removes a guild with ID from our guild account database (destroy the GuildAccount)
- * @prama {string} ID Guild ID to remove
+ * @prama {string} guildID Guild guildID to remove
  */
-Bismo.RemoveGuild = function(ID) {
-	for (var i = 0; i<lBismo.guildAccounts.length; i++)
-		if (lBismo.guildAccounts[i] != null)
-			if (lBismo.guildAccounts[i].id == ID) {
-				delete lBismo.guildAccounts[i];
-				lBismo.guildAccounts.splice(i,1);
-			}
+Bismo.RemoveGuild = function(guildID) {
+	if (lBismo.GuildAccounts[guildID].id == guildID)
+		delete lBismo.GuildAccounts[guildID];
 
 	Bismo.SaveGuilds();
 }
@@ -527,14 +533,14 @@ Bismo.GetGuildUserIDs = function(guildId) {
 
 /**
  * Check to see if a userId is apart of a guild
- * @param {string} ID UserID to check
+ * @param {string} userID UserID to check
  * @param {string} guildId In this guild
  * @return {boolean} Discord user is apart of a guild
  */
-Bismo.IsDiscordGuildMember = function(ID, guildId) {
+Bismo.IsDiscordGuildMember = function(userID, guildId) {
 	var members = Bismo.GetGuildUserIDs(guildId);
 	for (var i = 0; i<members.length; i++) {
-		if (members[i] == ID)
+		if (members[i] == userID)
 			return true;
 	}
 
@@ -543,13 +549,13 @@ Bismo.IsDiscordGuildMember = function(ID, guildId) {
 
 /**
  * Get all channels in a particular guild
- * @param {string} ID Guild to check
- * @param {string} [type] Only return these types of channels
+ * @param {string} guildID Guild to check
+ * @param {"GUILD_TEXT"|"GUILD_VOICE"|"GUILD_CATEGORY"|"GUILD_NEWS"|"GUILD_NEWS_THREAD"|"GUILD_PUBLIC_THREAD"|"GUILD_PRIVATE_THREAD"|"GUILD_STAGE_VOICE"|"UNKNOWN"} [type] Only return these types of channels
  * @return {Discord.Channel[]|Discord.VoiceChannel[]|Discord.TextChannel[]|Discord.StoreChannel[]|Discord.NewsChannel[]|array} Channels 
  */
-Bismo.GetGuildChannels = function(ID, type) {
+Bismo.GetGuildChannels = function(guildID, type) {
 
-	var channels = [...Bismo.GetDiscordGuildObject(ID).channels.cache.values()];
+	var channels = [...Bismo.GetDiscordGuildObject(guildID).channels.cache.values()];
 	var neededChannels = [];
 
 	for (var i = 0; i<channels.length; i++)
@@ -571,7 +577,7 @@ Bismo.GetGuildChannels = function(ID, type) {
  * @return {Discord.VoiceChannel|undefined} - Voice channel that user is in
  */
 Bismo.GetCurrentVoiceChannel = function(guildId, userId) {
-	voiceChannels = Bismo.GetGuildChannels(guildId, "voice");
+	voiceChannels = Bismo.GetGuildChannels(guildId, "GUILD_VOICE");
 
 	for (var i = 0; i<voiceChannels.length; i++)
 	{   
@@ -587,12 +593,30 @@ Bismo.GetCurrentVoiceChannel = function(guildId, userId) {
 // Return the channel object for $channelId in guild $ID
 /**
  * Get the channel object of a channel in a guild
- * @param {string} ID Channel is in this guild
+ * @param {string} guildID Channel is in this guild
  * @param {string} channelId The channel ID to get
  * @return {(Discord.TextChannel|Discord.VoiceChannel|Discord.NewsChannel|Discord.StoreChannel)} Channel object
  */
-Bismo.GetGuildChannelObject = function(ID,channelId) {
-	var g = Bismo.GetDiscordGuildObject(ID);
+Bismo.GetGuildChannelObject = function(guildID,channelId) {
+	if (guildID == undefined) { // why would you do this
+		// Find it then
+		for (var guildObject in lBismo.GuildObjects) {
+			if (lBismo.GuildObjects[guildObject] != undefined) {
+				var channels = [lBismo.GuildObjects[guildObject].channels.cache.values()]; // god bless
+				for (var i = 0; i<channels.length; i++) {
+					if (channels[i].id == channelID) {
+						guildID = guildObject;
+						break;
+					}
+				}
+				if (guildID != undefined)
+					break;
+			}
+		}
+	}
+
+
+	let g = Bismo.GetDiscordGuildObject(guildID);
 	if(g.channels != undefined) {
 		// utilLog(g.channels)
 		var channels = [...g.channels.cache.values()]
@@ -610,6 +634,80 @@ Bismo.GetGuildChannelObject = function(ID,channelId) {
 
 	return undefined;
 }
+
+// Return a DiscordVoice.VoiceConnection
+/**
+ * Get the voice connection object for a voice chat (object to send/receive audio). **Please utilize the VoiceManager rather than directly interacting with VoiceConnections**
+ * @param {string} voiceChannelID Channel ID of the voice chat we're managing
+ * @param {string} guildID Guild this voice chat lives in
+ * @returns {DiscordVoice.VoiceConnection} VoiceConnection object 
+ */
+Bismo.GetVoiceConnection = function(voiceChannelID, guildID) {
+	if (typeof voiceChannelID !== "string") {
+		throw new TypeError("Expected voiceChannelID to be type string, go type " + typeof voiceChannelID);
+	}
+
+	let voiceConnection = lBismo.VoiceConnections[voiceChannelID];
+	if (voiceConnection !== undefined)
+		return voiceConnection;
+
+	let guildChannel = Bismo.GetGuildChannelObject(guildID, voiceChannelID);
+	if (guildChannel == undefined)
+		return undefined;
+
+	if (guildChannel.type != "voice" && guildChannel.type != "dm")
+        return undefined;
+    if (typeof guildChannel.permissionsFor != "function")
+        return undefined;
+    let permissions = guildChannel.permissionsFor(Client.user)
+    if (!permissions.has("CONNECT"))
+        throw new NoVoiceChannelPermissions("connect");
+    if (!permissions.has("SPEAK"))
+        throw new NoVoiceChannelPermissions("speak");
+
+    // Okay there should be a join-able voice channel were we can speak in.
+    let connection = DiscordVoice.joinVoiceChannel({
+        channelId: guildChannel.id,
+        guildId: guildID,
+        adapterCreator: guildChannel.guild.voiceAdapterCreator,
+    });
+
+    connection.on(DiscordVoice.VoiceConnectionStatus.Destroyed, () => {
+    	Bismo.log("[VC] Connection destroyed: " + voiceChannelID);
+    	delete lBismo.VoiceConnections[voiceChannelID];
+    });
+
+    connection.on(DiscordVoice.VoiceConnectionStatus.Disconnected, async () => {
+		try {
+			await Promise.race([
+				DiscordVoice.entersState(connection, DiscordVoice.VoiceConnectionStatus.Signalling, 5_000),
+				DiscordVoice.entersState(connection, DiscordVoice.VoiceConnectionStatus.Connecting, 5_000),
+			]);
+			// Seems to be reconnecting to a new channel - ignore disconnect
+		} catch (error) {
+			// Seems to be a real disconnect which SHOULDN'T be recovered from
+			connection.destroy();
+		}
+	});
+
+    lBismo.VoiceConnections[voiceChannelID] = connection;
+
+    return connection;
+}
+
+// Bismo VoiceManager
+/**
+ * Manages VoiceConnections and their currently playing subscriptions
+ */
+Bismo.VoiceManager = new VoiceManager(Client, Bismo);
+
+/**
+ * @typedef {Bismo} BismoAPI 
+ */
+
+
+
+
 
 /**
  * @typedef {BismoGetReply} BismoCommandExecuteDataGetReply
@@ -797,9 +895,12 @@ Bismo.RegisterCommand = function(alias, handler, options) {
  */
 Bismo.GetPlugin = function(name, mustBePackage) {
 	function getFromPackageName(name) {
-		for (const [key] of Object.keys(Plugins)) {
-			if (Plugins[key].manifest.packageName == name) {
-				return Plugins[key].api;
+		for (var key in Plugins) {
+			if (Plugins[key] != undefined) {
+				if (Plugins[key].manifest != undefined)
+					if (Plugins[key].manifest.packageName == name) {
+						return Plugins[key].api;
+					}
 			}
 		}
 
@@ -972,7 +1073,7 @@ Bismo.Permissions.ClearUserPermissions = function(guildId, userId) {
  * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
  * @param {string} userId
  */
-Bismo.DeleteUserPermissions = function(guildId, userId) {
+Bismo.Permissions.DeleteUserPermissions = function(guildId, userId) {
 	let guildAccount = GetGuildObj(guildId);
 	guildAccount?.DeleteUserPermissions(userId);
 }
@@ -1247,8 +1348,8 @@ for (var i = 0; i<dirs.length; i++) {
 				Bismo.log(`[B] Skipping non-plugin folder ${fName}`);
 			}
 		} catch (error) {
-			console.error(error);
-			Bismo.log(`[31m[B **] Warning! Failed to load plugin ${fName}!\nError: ${error}[0m`);
+			console.error(error.stack || error);
+			Bismo.log(`[31m[B **] Warning! Failed to load plugin ${fName}!\nError: ${error}[0m`);			
 		}
 	}());
 }
@@ -1396,7 +1497,7 @@ Client.on("messageCreate", message => {
 
 		if (message.author.bot || message.author.system) return; // Do not process bot responses.
 		// we should not sha1 this, seems slow as hell
-		if (lBismo.waitForReply.indexOf(crypto.createHash('sha1').update(message.author.id + message.channel.id).digest('base64'))>-1) return; // Do not process reply responses. (this is already processed.)
+		if (lBismo.WaitForReply.indexOf(crypto.createHash('sha1').update(message.author.id + message.channel.id).digest('base64'))>-1) return; // Do not process reply responses. (this is already processed.)
 
 
 		// // Emotes
@@ -1722,10 +1823,10 @@ Client.on('interactionCreate', async interaction => { // async?
 
 /*  STARTUP  */
 Client.on("ready", async () => {
-	lBismo.guildObjects = {};
+	lBismo.GuildObjects = {};
 	var guilds = [...Client.guilds.cache.values()];
 	for (var i = 0; i<guilds.length; i++) {
-		lBismo.guildObjects[guilds[i].id] = guilds[i];
+		lBismo.GuildObjects[guilds[i].id] = guilds[i];
 		// Client.api.applications(Client.user.id).guilds(guilds[i].id).commands.put({data: []});
 	}
 
@@ -1805,7 +1906,7 @@ Client.on("ready", async () => {
 			Bismo.Events.discord.emit('ready', Client);
 		}
 
-		// lBismo.guildAccounts = JSON.parse(data); // Load the guilds
+		// lBismo.GuildAccounts = JSON.parse(data); // Load the guilds
 		let guilds = JSON.parse(data);
 		if (guilds == undefined) {
 			completed();
@@ -1819,27 +1920,27 @@ Client.on("ready", async () => {
 		for (var i = 0; i<guilds.length; i++) {
 			let guild = new GuildAccount(guilds[i], Bismo);
 			if (guild != undefined)
-				lBismo.guildAccounts.push(guild);
+				lBismo.GuildAccounts[guild.id] = guild;
 		}
 		
 		let loaded = 0;
-		if (lBismo.guildAccounts.length == 0) {
+		if (Object.keys(lBismo.GuildAccounts).length == 0) {
 			completed();
 
 		} else {
-			for (var i = 0; i<lBismo.guildAccounts.length; i++) {
-				if (lBismo.guildAccounts[i]==null)
+			for (const guildAccount in lBismo.GuildAccounts) {
+				if (lBismo.GuildAccounts[guildAccount]==null)
 					continue;
 				
-				var gID = lBismo.guildAccounts[i].id;
+				var gID = lBismo.GuildAccounts[guildAccount].id;
 				Client.guilds.fetch(gID).then(gD => {
-					lBismo.guildObjects[gID] = gD;
+					lBismo.GuildObjects[gID] = gD;
 
 					// Setup the guild
 					var BismoPacket = {
-						guildId: gID, // The guild ID
-						discordGuildObject: gD, // Discord guild object
-						bismoGuildObject: lBismo.guildAccounts[i], // The guild account
+						GuildId: gID, // The guild ID
+						DiscordGuildObject: gD, // Discord guild object
+						BismoGuildObject: lBismo.GuildAccounts[guildAccount], // The guild account
 					};
 					/**
 					 * Guild Discovered event
@@ -1854,7 +1955,7 @@ Client.on("ready", async () => {
 					loaded++;
 
 
-					if (loaded>= lBismo.guildAccounts.length) {
+					if (loaded>= Object.keys(lBismo.GuildAccounts).length) {
 						completed();
 					}
 				});

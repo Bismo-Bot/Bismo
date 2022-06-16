@@ -29,11 +29,11 @@ These functions are internal to the bismo.js file itself.\
 
 `lBismo.guildObjects`: 	Object containing all the Discord guild objects
 
+`lBismo.voiceConnections`: Key pairings of voice channel connections (Discord.VoiceConnection) and their respective voice channel ID 
+
 
 `lBismo.waitForReply`: 	Array of GetReply IDs (when using GetReply, Bismo saves an ID of the interaction so the messages handler can ignore the response)
 
-
-`lBismo.apiVersion`: Bismo API version
 
 
 
@@ -86,6 +86,7 @@ _See ./Support/GuildAccount.js for more info_
 
 `Bismo.GetGuildChannelObject(ID, channelID)`: Returns the channel object of a channel (channelID) in a guild (Id).
 
+`Bismo.GetVoiceConnection(voiceChannelID[, guildID])`: Returns the voiceConnection for a particular voice channel
 
 ---
 
@@ -135,6 +136,8 @@ CommandExecuteData is passed to the command's handler as the first parameter, an
 `GetReply` _Type: `Bismo.CommandExecuteDataGetReply`_ This is a wrapper for the Bismo.GetUserReply() function. Allows you to collect a single response from the author in chat\
 `alias` _Type: `string`_ Which command was executed\
 `args` _Type: `string[]`_ The parameters for the command (We automatically phrase this for you, in both chat and slash commands)\
+`parser`: _Type: `ArgumentParser`_ The more advance argument parser. Use `.GetArgument(argName)` to return the value of an argument, and `.IsPresent(argName)` to check whether or not an argument was presented in the command. 
+See _ArgumentParser_ for more info.\
 `channel` _Type: `Discord.TextChannel`_ Channel object the message was sent over\
 `author` _Type: `Discord.User`_ User object that executed the command\
 `authorID` _Type: `string`_ User ID\
@@ -145,6 +148,10 @@ CommandExecuteData is passed to the command's handler as the first parameter, an
 `isInteraction` _Type: `boolean`_ Whether or not this was an interaction (slash command / message interaction)\
 `message?` _Type: `Discord.Message`_  Message object (if chat command)\
 `interaction?` _Type: `Discord.Interaction`_  Interaction object (if slash command / message interaction)
+
+
+
+---
 
 
 ### Internal helpers
@@ -160,6 +167,7 @@ Returns a promise, resolves to the contents of `path` as an object. Rejects if `
 `readJSONFileSync(path)`: Same as above, but synchronous. Returns the contents.
 
 
+---
 
 
 ### InteractionManager:
@@ -200,6 +208,8 @@ if `inGuilds` is true, then the same as `inGlobal` takes place, but we do it for
 This command is good to run after startup to act as garbage collection for old application commands that are not used.\
 You _should not_ run this periodically _if_ commands are registered via your instance of InteractionManager. Do so is just a waste.
 
+
+---
 
 
 ### Plugins
@@ -245,6 +255,7 @@ Walk-through of plugin loading:
 After all plugins have loaded, we emit `pluginsLoaded` on `Bismo.Events.bot`. Use this to then obtain another plugin's API.
 
 
+---
 
 
 ### Events
@@ -261,6 +272,9 @@ There are some custom Bismo events, however. Here they are:
 ##### Bismo.Events.bot
 `guildDiscovered`: On startup, this is called for each guildAccount loaded. The only parameter is an object: `{ guildId: string, discordGuildObject: Discord.Guild, bismoGuildObject: Bismo.GuildAccount } `\
 `pluginsLoaded`: Emitted after all plugins have been loaded.
+
+
+---
 
 
 ### Permissions
@@ -349,3 +363,11 @@ Roles:\
 `RenameRole(currentName, newName)`: Renames a role from `currentName` to `newName`. Also updates the name in the user's roles
 
 `DeleteRole(role)`: Removes a role from the permissions storage and removes the role from users
+
+
+
+## Audio
+Playing audio into voice channels on Discord can be complicated.  Luckily Discord.JS has made it easy via Discord.JS/Voice, however, only one audio source can be played at once so we need some way to manage all of these plugins and audio focus.
+
+yada-yada, work in progress.
+Essentially allow plugins to request the voiceconnection all willynilly, but, scrub the subscribe function from that instance if possible, or redirect the function to Bismo.FocusAudio(voiceConnection)
