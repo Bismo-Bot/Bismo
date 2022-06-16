@@ -1,5 +1,6 @@
 # Dev items
 .vs/
+.vscode/
 node_modules/
 
 

@@ -33,7 +33,10 @@ Error.stackTraceLimit = 3;
 // This is the public API given to the plug-ins
 const Bismo = {}
 
-Bismo.Version = new Version(0,3,0,(debug)?"debug":"release","3");;
+process.Bismo = Bismo;
+
+Bismo.Version = new Version(0,3,1,(debug)?"debug":"release","June22");;
+
 Bismo.isWindows = isWin;
 Bismo.debugMode = debug;
 
@@ -1095,6 +1098,7 @@ Bismo.Permissions.GetRaw = function(guildId) {
 var Plugins = {};
 const { readdirSync, statSync } = require('fs')
 const { join } = require('path');
+const { platform } = require('os');
 // const { default: Command } = require('./Support/Command.js');
 const getDirs = p => readdirSync(p).filter(f => statSync(join(p, f)).isDirectory())
 var dirs = getDirs('./Plugins');
@@ -1879,8 +1883,8 @@ Client.on("ready", async () => {
 	There's no reason to remove them, but go for it I guess.
 */
 Bismo.RegisterCommand("version", message => { // Current bot version
-	message.Reply("Running  _Bismo_  version `" + Bismo.Version + "` "
-		+ ((Bismo.debugMode)? "\n`{*debug*, isWin?" + Bismo.isWindows + "}`" : ""));
+	message.Reply("Bismo version `" + Bismo.Version + "` "
+		+ ((Bismo.debugMode)? "\n`{debug, platform?" + process.platform + "}`" : ""));
 }, {
 	description: "Reveal which version of Bismo is under the hood.",
 	helpMessage: "Usage:\n`/version`",
@@ -1889,7 +1893,8 @@ Bismo.RegisterCommand("version", message => { // Current bot version
 	slashCommand: true
 });
 Bismo.RegisterCommand("ping", message => {
-	message.Reply("Pong!");
+	// Add timing information
+	message.Reply("Pong!\nDelay: `" + (Date.now() - message.message.createdTimestamp) + "ms` | API delay: `" + Client.ws.ping + "ms`");
 }, {
 	description: "Ping the bot.",
 	helpMessage: "Usage:\n`/ping`",
