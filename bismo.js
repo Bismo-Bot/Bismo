@@ -1823,7 +1823,10 @@ Client.on("ready", async () => {
 
 
 		function completed() {
-			Client.user.setActivity(lBismo.Config.Discord.activity);
+			if (debug)
+				Client.user.setActivity("DevBuild " + Bismo.Version.toString(false));
+			else
+				Client.user.setActivity(lBismo.Config.Discord.activity);
 			Bismo.log("[B] Bismo loaded.");
 			Bismo.Events.discord.emit('ready', Client);
 		}
