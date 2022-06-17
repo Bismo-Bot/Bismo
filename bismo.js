@@ -35,16 +35,15 @@ const Bismo = {}
 
 process.Bismo = Bismo;
 
-Bismo.Version = new Version(0,3,1,(debug)?"debug":"release","June22");;
+Bismo.Version = new Version(0,3,1,(debug)?"debug":"release","CmdInterface");;
 
 Bismo.isWindows = isWin;
 Bismo.debugMode = debug;
 
 const lBismo = {
-	config: {},
-	guildAccounts: [],
-	userAccounts: [],
-	waitForReply: [],
+	Config: {}, // This is things like creditials
+	GuildAccounts: [],
+	WaitForReply: [],
 } // This is our private API given to no-one.
 
 const ogLog = console.log;
@@ -199,8 +198,8 @@ function writeJSONFileSync(path, contents) {
  * @return {JSON} JSON object of config data
  */
 function readJSONFile(path) {
-	return new Promise((resolve, reject) => {
-		fs.readFile(path, (err, data) => {
+	function onRead(err, data, resolve, reject) {
+		try {
 			if (err)
 				reject(err);
 			if (!isWin || !useDPAPI) {
@@ -225,6 +224,19 @@ function readJSONFile(path) {
 					resolve(data);
 				}
 			}
+		} catch (e) {
+			console.error(e);
+
+			console.log("There was an error reading the config file: " + path);
+
+			process.exit(1);
+		}
+	}
+
+
+	return new Promise((resolve, reject) => {
+		fs.readFile(path, (err, data) => {
+			onRead(err, data, resolve, reject)
 		});
 	});
 }
@@ -234,26 +246,32 @@ function readJSONFile(path) {
  * @return {JSON} JSON object of config data
  */
 function readJSONFileSync(path) {
-	if (!isWin || !useDPAPI)
-		return JSON.parse(fs.readFileSync(path).toString()); // quick and dirty
-	else {
-		// Is DPAPI protected?
-		var contents = fs.readFileSync(path).toString();
-		if (contents.substr(0,5) == "DPAPI") {
-			// Yes
-			contents = contents.substr(5);
-			Bismo.log(contents);
-			return JSON.parse(dpapi.unprotectData(Buffer.from(contents, 'utf-8'), entropy, DPAPIKeyScope)); // Note: you can also use the LocalMachine key rather than CurrentUser
-			// The null refers to the option entropy that we're ignoring
-		} else {
-			// No
-			contents = JSON.parse(contents);
-			if (useDPAPI) {
-				// Write the file, but encrypt it.
-				writeJSONFileSync(path, contents);
+	try {
+		if (!isWin || !useDPAPI)
+			return JSON.parse(fs.readFileSync(path).toString()); // quick and dirty
+		else {
+			// Is DPAPI protected?
+			var contents = fs.readFileSync(path).toString();
+			if (contents.substr(0,5) == "DPAPI") {
+				// Yes
+				contents = contents.substr(5);
+				Bismo.log(contents);
+				return JSON.parse(dpapi.unprotectData(Buffer.from(contents, 'utf-8'), entropy, DPAPIKeyScope)); // Note: you can also use the LocalMachine key rather than CurrentUser
+				// The null refers to the option entropy that we're ignoring
+			} else {
+				// No
+				contents = JSON.parse(contents);
+				if (useDPAPI) {
+					// Write the file, but encrypt it.
+					writeJSONFileSync(path, contents);
+				}
+				return contents;
 			}
-			return contents;
 		}
+	} catch (e) {
+		console.error(e);
+		console.log("There was an error reading the config file: " + path);
+		process.exit(1);
 	}
 }
 
@@ -297,8 +315,9 @@ const InteractionManager = require('./Support/InteractionManager');
 // Setup
 
 // Load and decrypt the config file (if on Windows)
+lBismo.Config = readJSONFileSync('./Data/Config.json');
 
-const Config = readJSONFileSync('./Data/Config.json');
+
 
 // var GAccounts = []; // These are our configurations regarding guilds
 // var Accounts = []; // " regarding users
@@ -311,7 +330,7 @@ var Commands = new Map();
 
 //### Begin Bismo public API
 
-Bismo.InteractionManager = new InteractionManager(Client, Config.Discord.token);
+Bismo.InteractionManager = new InteractionManager(Client, lBismo.Config.Discord.token);
 
 // Deprecated.
 // Use this to wait for additional input from a user. When called, the user ($ID)'s next message will be sent straight to the callback function. We do not process the next message from user $ID (as a command or anything else)
@@ -319,7 +338,7 @@ Bismo.InteractionManager = new InteractionManager(Client, Config.Discord.token);
 // Note, this command DOES NOT require the user to type the bot's prefix, (! or its mention) for us to process it. The user just types the cancel command in itsentirety.
 Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter, options) { // userId, reply channel, cancel command (to stop listening), callback function (when reply got), filter, options
 	var wFRID = crypto.createHash('sha1').update(id + channel).digest('base64');
-	lBismo.waitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
+	lBismo.WaitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
 
 	if (filter ==  undefined)
 		filter =  m => m.author.id === id; // Sets our filter to only accept messages from the user with $ID
@@ -331,9 +350,9 @@ Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter
 	collector.on('collect', msg => { 
 		collector.stop(); // Stop collection
 
-		var i = lBismo.waitForReply.indexOf(wFRID);
+		var i = lBismo.WaitForReply.indexOf(wFRID);
 		if (i>-1) {
-			lBismo.waitForReply.splice(i,1); // Remove user from WaitForReply list
+			lBismo.WaitForReply.splice(i,1); // Remove user from WaitForReply list
 		}
 		if (msg.content === cancelCommand) {
 			channel.send({content: "Canceled."})
@@ -358,8 +377,8 @@ Bismo.WaitForUserMessage = function(id, channel, cancelCommand, callback, filter
  * The returned promise will either resolve with the user's unmodified message or reject if they canceled (using the cancel command, !~cancel).\
  * Use this to wait for additional input from a user. When called, the user's next message will be resolved and processed by the calling code without any altering.\
  * *We do split the user's message by white space into an array called 'args'\
- * To prevent command processing from this user we calculate the SHA1 of the user's ID and channel's ID concatenated together and then add that to the waitForReply array.\
- * When a normal message comes in, we always calculate this same SHA1 and check to see if anything lives in waitForReply, if something does we do not process the command.\
+ * To prevent command processing from this user we calculate the SHA1 of the user's ID and channel's ID concatenated together and then add that to the WaitForReply array.\
+ * When a normal message comes in, we always calculate this same SHA1 and check to see if anything lives in WaitForReply, if something does we do not process the command.\
  * Since we do not process the message in any way, the bot's prefix is NOT required. The entirety of the message will be processed by your callback function.
  * 
  * @param {string} userId Discord user ID of the person you're waiting for a reply from
@@ -378,7 +397,7 @@ Bismo.GetUserReply = function(userId, channelId, options) {
 
 	return new Promise((resolve, reject) => {
 		let wFRID = crypto.createHash('sha1').update(userId + channel).digest('base64');
-		lBismo.waitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
+		lBismo.WaitForReply.push(wFRID); // So we can ignore the reply in the main bot message handler
 
 		if (options.filter ==  undefined)
 			options.filter =  m => m.author.id === userId; // Sets our filter to only accept messages from the user with $ID
@@ -387,9 +406,9 @@ Bismo.GetUserReply = function(userId, channelId, options) {
 		collector.on('collect', msg => { 
 			collector.stop(); // Stop collection
 
-			let i = lBismo.waitForReply.indexOf(wFRID);
+			let i = lBismo.WaitForReply.indexOf(wFRID);
 			if (i>-1)
-				lBismo.waitForReply.splice(i,1); // Remove user from WaitForReply list
+				lBismo.WaitForReply.splice(i,1); // Remove user from WaitForReply list
 			
 			if (msg.content === cancelCommand) {
 				channel.send({content: "Canceled."})
@@ -423,8 +442,8 @@ Bismo.GetUserReplySync = async function(userId, channelId, options) {
 Bismo.SaveGuilds = function() {
 	// Clear runtime settings, convert to JSON, save file
 	var CleanGuilds = [];
-	for (var i = 0; i<lBismo.guildAccounts.length; i++) {
-		CleanGuilds[i] = lBismo.guildAccounts[i].GetSterile();
+	for (var i = 0; i<lBismo.GuildAccounts.length; i++) {
+		CleanGuilds[i] = lBismo.GuildAccounts[i].GetSterile();
 	}
 
 	writeJSONFileSync('./Data/Guilds.json', CleanGuilds);
@@ -451,10 +470,10 @@ Bismo.GetDiscordGuildObject = function(ID) {
  */
 Bismo.AddGuild = function(ID, data) {
 	// Check if this guild account exists
-	for(var i = 0; i<lBismo.guildAccounts.length; i++)
-		if (lBismo.guildAccounts[i] != null)
-			if (lBismo.guildAccounts[i].id == ID)
-				return lBismo.guildAccounts[i];
+	for(var i = 0; i<lBismo.GuildAccounts.length; i++)
+		if (lBismo.GuildAccounts[i] != null)
+			if (lBismo.GuildAccounts[i].id == ID)
+				return lBismo.GuildAccounts[i];
 
 	if (data==null)
 		data = {}
@@ -468,7 +487,7 @@ Bismo.AddGuild = function(ID, data) {
 
 	let gData = new GuildAccount(data, Bismo);
 
-	lBismo.guildAccounts.push(gData);
+	lBismo.GuildAccounts.push(gData);
 	Bismo.SaveGuilds();
 	return gData;
 }
@@ -480,10 +499,10 @@ Bismo.AddGuild = function(ID, data) {
  * @return {?GuildAccount} GuildAccount object
  */
 Bismo.GetBismoGuildObject = function(ID) {
-	for (var i = 0; i<lBismo.guildAccounts.length; i++)
-		if (lBismo.guildAccounts[i] != null)
-			if (lBismo.guildAccounts[i].id == ID)
-				return lBismo.guildAccounts[i];
+	for (var i = 0; i<lBismo.GuildAccounts.length; i++)
+		if (lBismo.GuildAccounts[i] != null)
+			if (lBismo.GuildAccounts[i].id == ID)
+				return lBismo.GuildAccounts[i];
 }
 
 /**
@@ -491,11 +510,11 @@ Bismo.GetBismoGuildObject = function(ID) {
  * @prama {string} ID Guild ID to remove
  */
 Bismo.RemoveGuild = function(ID) {
-	for (var i = 0; i<lBismo.guildAccounts.length; i++)
-		if (lBismo.guildAccounts[i] != null)
-			if (lBismo.guildAccounts[i].id == ID) {
-				delete lBismo.guildAccounts[i];
-				lBismo.guildAccounts.splice(i,1);
+	for (var i = 0; i<lBismo.GuildAccounts.length; i++)
+		if (lBismo.GuildAccounts[i] != null)
+			if (lBismo.GuildAccounts[i].id == ID) {
+				delete lBismo.GuildAccounts[i];
+				lBismo.GuildAccounts.splice(i,1);
 			}
 
 	Bismo.SaveGuilds();
@@ -1098,7 +1117,7 @@ Bismo.Permissions.GetRaw = function(guildId) {
 var Plugins = {};
 const { readdirSync, statSync } = require('fs')
 const { join } = require('path');
-const { platform } = require('os');
+const { platform, type } = require('os');
 // const { default: Command } = require('./Support/Command.js');
 const getDirs = p => readdirSync(p).filter(f => statSync(join(p, f)).isDirectory())
 var dirs = getDirs('./Plugins');
@@ -1177,7 +1196,7 @@ for (var i = 0; i<dirs.length; i++) {
 
 				/**
 				 * Get your plugin's configuration data. Use's the bot's DPAPI settings
-				 * @param {string} [name = "config"] - Config file name
+				 * @param {string} [name="config"] - Config file name
 				 * @param {function} [callback] - Function called once data is read (if undefined function becomes synchronous)
 				 * @return {JSON|Promise} Returns configuration data if callback is undefined, or calls your callback if it is defined
 				 */
@@ -1400,7 +1419,7 @@ Client.on("messageCreate", message => {
 
 		if (message.author.bot || message.author.system) return; // Do not process bot responses.
 		// we should not sha1 this, seems slow as hell
-		if (lBismo.waitForReply.indexOf(crypto.createHash('sha1').update(message.author.id + message.channel.id).digest('base64'))>-1) return; // Do not process reply responses. (this is already processed.)
+		if (lBismo.WaitForReply.indexOf(crypto.createHash('sha1').update(message.author.id + message.channel.id).digest('base64'))>-1) return; // Do not process reply responses. (this is already processed.)
 
 
 		// // Emotes
@@ -1702,7 +1721,7 @@ Client.on('interactionCreate', async interaction => { // async?
 				cmd.handler(commandData);
 				// command done, remove status (if needed)
 			})().catch((err) => {
-				console.error("[B] Command (interaction) error, cmd: " + interaction.data.name);
+				console.error("[B] Command (interaction) error, cmd: " + interaction.commandName);
 				dlog("[B-e] Trace: " + err.stack);
 				commandData.Reply("O_O !! Command fault, unhandled exception.")
 				return;
@@ -1768,7 +1787,7 @@ Client.on("ready", async () => {
 						} else {
 							if (debug) {
 								let guilds = ['756391901099458600']; // Debug clan
-								await Bismo.InteractionManager.RegisterGuildCommand(body, guilds, true);
+								await Bismo.InteractionManager.RegisterGuildCommand(body, guilds);
 							} else {
 								// Register command globally
 								await Bismo.InteractionManager.RegisterGlobalCommand(body);
@@ -1804,12 +1823,12 @@ Client.on("ready", async () => {
 
 
 		function completed() {
-			Client.user.setActivity(Config.Discord.activity);
+			Client.user.setActivity(lBismo.Config.Discord.activity);
 			Bismo.log("[B] Bismo loaded.");
 			Bismo.Events.discord.emit('ready', Client);
 		}
 
-		// lBismo.guildAccounts = JSON.parse(data); // Load the guilds
+		// lBismo.GuildAccounts = JSON.parse(data); // Load the guilds
 		let guilds = JSON.parse(data);
 		if (guilds == undefined) {
 			completed();
@@ -1823,19 +1842,19 @@ Client.on("ready", async () => {
 		for (var i = 0; i<guilds.length; i++) {
 			let guild = new GuildAccount(guilds[i], Bismo);
 			if (guild != undefined)
-				lBismo.guildAccounts.push(guild);
+				lBismo.GuildAccounts.push(guild);
 		}
 		
 		let loaded = 0;
-		if (lBismo.guildAccounts.length == 0) {
+		if (lBismo.GuildAccounts.length == 0) {
 			completed();
 
 		} else {
-			for (var i = 0; i<lBismo.guildAccounts.length; i++) {
-				if (lBismo.guildAccounts[i]==null)
+			for (var i = 0; i<lBismo.GuildAccounts.length; i++) {
+				if (lBismo.GuildAccounts[i]==null)
 					continue;
 				
-				var gID = lBismo.guildAccounts[i].id;
+				var gID = lBismo.GuildAccounts[i].id;
 				Client.guilds.fetch(gID).then(gD => {
 					lBismo.guildObjects[gID] = gD;
 
@@ -1843,7 +1862,7 @@ Client.on("ready", async () => {
 					var BismoPacket = {
 						guildId: gID, // The guild ID
 						discordGuildObject: gD, // Discord guild object
-						bismoGuildObject: lBismo.guildAccounts[i], // The guild account
+						bismoGuildObject: lBismo.GuildAccounts[i], // The guild account
 					};
 					/**
 					 * Guild Discovered event
@@ -1858,7 +1877,7 @@ Client.on("ready", async () => {
 					loaded++;
 
 
-					if (loaded>= lBismo.guildAccounts.length) {
+					if (loaded>= lBismo.GuildAccounts.length) {
 						completed();
 					}
 				});
@@ -1894,7 +1913,8 @@ Bismo.RegisterCommand("version", message => { // Current bot version
 });
 Bismo.RegisterCommand("ping", message => {
 	// Add timing information
-	message.Reply("Pong!\nDelay: `" + (Date.now() - message.message.createdTimestamp) + "ms` | API delay: `" + Client.ws.ping + "ms`");
+	var messageDelay = (message.isInteraction) ? (Date.now() - message.interaction.createdTimestamp) : (Date.now() - message.message.createdTimestamp)
+	message.Reply("Pong! _Delay: `" + messageDelay + "ms` | API delay: `" + Client.ws.ping + "ms`_");
 }, {
 	description: "Ping the bot.",
 	helpMessage: "Usage:\n`/ping`",
@@ -1903,6 +1923,58 @@ Bismo.RegisterCommand("ping", message => {
 	slashCommand: true
 })
 
+
+Shutdown = async function() {
+	console.log("\nShutting down");
+
+	var shutdownTimeout = lBismo.Config.shutdownTimeout;
+	if (typeof shutdownTimeout !== "number")
+		shutdownTimeout = 5000;
+
+
+	console.log("Notifying plugins @Bismo.Events.Bot#shutdown:" + shutdownTimeout);
+	Bismo.Events.bot.emit('shutdown', shutdownTimeout);
+	await SF.sleep(shutdownTimeout)
+
+	console.log("[D] Logging off ...");
+	Client.destroy();
+	await SF.sleep(500);
+	process.exit(0);
+}
+
+
+// Server operator interaction
+
+const readline = require("readline");
+const rl = readline.createInterface({
+	input: process.stdin,
+	output: process.stdout
+});
+
+function processCMD(command) {
+	try {
+		if (command == "exit" || command == "quit")
+			Shutdown();
+		else
+			ogLog("Received input: " + command);
+	} catch(_) {
+		// do a thing or something
+	}
+}
+function prompt() {
+	rl.question("", (command) => {
+		processCMD(command);
+		prompt();
+	});
+}
+
+rl.on("close", function () {
+	Shutdown();
+});
+
+// Operator input
+prompt();
+
 // Okay, we're ready to "start"
 // go for launch
-Client.login(Config.Discord.token);
+Client.login(lBismo.Config.Discord.token);

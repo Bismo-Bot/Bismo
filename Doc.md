@@ -21,19 +21,17 @@ Also, because I'll leave a project for extended periods of time I'll typically f
 
 ## Private (internal) API
 These functions are internal to the bismo.js file itself.\
-`lBismo.config`: 			Local bot configuration
+`lBismo.Config`: 		Local bot configuration (login token, activity, shutdown wait timeout, etc)
 
 `lBismo.SaveConfig()`: 	Saves lBismo.config object to the config.json file
 
-`lBismo.guildAccounts`: 	Array of Bismo guild account data (Bismo side)
+`lBismo.GuildAccounts`: Array of Bismo guild account data (Bismo side)
 
-`lBismo.guildObjects`: 	Object containing all the Discord guild objects
-
-
-`lBismo.waitForReply`: 	Array of GetReply IDs (when using GetReply, Bismo saves an ID of the interaction so the messages handler can ignore the response)
+`lBismo.GuildObjects`: 	Object containing all the Discord guild objects
 
 
-`lBismo.apiVersion`: Bismo API version
+`lBismo.WaitForReply`: 	Array of GetReply IDs (when using GetReply, Bismo saves an ID of the interaction so the messages handler can ignore the response)
+
 
 
 
@@ -261,6 +259,10 @@ There are some custom Bismo events, however. Here they are:
 ##### Bismo.Events.bot
 `guildDiscovered`: On startup, this is called for each guildAccount loaded. The only parameter is an object: `{ guildId: string, discordGuildObject: Discord.Guild, bismoGuildObject: Bismo.GuildAccount } `\
 `pluginsLoaded`: Emitted after all plugins have been loaded.
+`shutdown`: Emitted when the bot is shutting down. Only parameter is the shutdownTimeout (I.E. the amount of time until the Discord Client is destroy()'d)
+
+
+
 
 
 ### Permissions
