@@ -1,4 +1,54 @@
-// Song 'class'
+const EventEmitter = require('node:events');
+
+/**
+ * 
+ */
+class BismoAudioPlayer {
+    AudioPlayer;
+    ID;
+    VoiceChannelId;
+    Name;
+    PluginName;
+    
+    /**
+     * 
+     */
+    Events = new EventEmitter();
+    
+    /**
+     * @event Events#FocusedChanged
+     * @type {object}
+     * @property {boolean} InFocus - Indicates whether the play entered focus (begin playing) or is no longer in focus (stop playing)
+     */
+
+
+
+    Focused;
+    Unfocused;
+
+
+    constructor() {
+
+    }
+
+    GetFocusLevel() {
+
+    }
+    SetFocusLevel() {
+
+    }
+
+    Focus() {
+
+    }
+
+    Unsuscribe() {
+
+    }
+}
+
+
+
 /**
  * VoiceManager class: manages currently playing/subscribed AudioPlayers to allow for predicable and manageable audio behavior
  */
@@ -59,6 +109,15 @@ class VoiceManager {
         }
 
     }
+
+    Connect(voiceChannelId) {
+
+    }
+
+    Disconnect(voiceChannelId) {
+
+    }
+
     /**
      * Subscribes an AudioPlayer to a VoiceConnection (if no other AudioPlayer has higher priority)
      * @param {string} voiceChannelID Voice channel ID you'll like to connect the AudioPlayer to
@@ -72,7 +131,7 @@ class VoiceManager {
 
     }
 
-    GetActiveFocus(voiceChannelID) {
+    GetActivePlayer(voiceChannelID) {
 
     }
     GetActiveFocusLevel(voiceChannelID) {
@@ -91,4 +150,7 @@ class VoiceManager {
     // return Song;
 // }
 
-module.exports = VoiceManager;
+module.exports = {
+    VoiceManager: VoiceManager,
+    BismoAudioPlayer: BismoAudioPlayer,
+}

@@ -325,7 +325,9 @@ const Client = new Discord.Client({
 const GuildAccount = require('./Support/GuildAccount');
 const ArgumentParser = require('./Support/ArgumentParser');
 const InteractionManager = require('./Support/InteractionManager');
-const VoiceManager = require('./Support/VoiceManager');
+let vM = require('./Support/VoiceManager');
+const VoiceManager = vM.VoiceManager;
+const BismoAudioPlayer = vM.BismoAudioPlayer;
 // Setup
 
 // Load and decrypt the config file (if on Windows)
