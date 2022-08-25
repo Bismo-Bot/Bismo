@@ -1,34 +1,34 @@
 /**
- * Semantic versioning
+ * Semantic versioning ( v1.5.2-release+Build2403 )
  * @class 
  */
 class Version {
 	/**
-	 * Major version number
+	 * Major version number ( vX.0.0 )
 	 * @type {number}
 	 */
 	major = 0;
 
 	/**
-	 * Major version number
+	 * Minor version number ( v0.X.0 )
 	 * @type {number}
 	 */
 	minor = 0;
 
 	/**
-	 * Major version number
+	 * Path number ( v0.0.X )
 	 * @type {number}
 	 */
 	patch = 0;
 
 	/**
-	 * Pre-release label
+	 * Pre-release label ( v0.0.0-X )
 	 * @type {string}
 	 */
 	prerelease = "";
 
 	/**
-	 * Build metadata label 
+	 * Build metadata label ( v0.0.0-debug+X )
 	 * @type {string}
 	 */
 	metaData = "";
@@ -76,6 +76,11 @@ class Version {
 		this.metaData = metaData;
 	}
 
+	/**
+	 * Convert the version to a readable string following the semantic styling
+	 * @param {boolean} wrapInBracket Whether to wrap the prerelease and metadata information in brackets (v1.4.2{debug}[Metadata]) or the semantic way (v1.4.2-debug+Metadata)
+	 * @returns 
+	 */
 	toString(wrapInBracket) {
 		let str = `${this.major}.${this.minor}.${this.patch}`;
 
