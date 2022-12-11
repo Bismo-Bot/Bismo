@@ -35,7 +35,7 @@ const Bismo = {}
 
 process.Bismo = Bismo;
 
-Bismo.Version = new Version(0, 3, 1, ((debug)?"debug":"release"), "CmdInterfaceVMSync");;
+Bismo.Version = new Version(0, 3, 2, ((debug)?"debug":"release"), "VoiceManager1");;
 
 Bismo.isWindows = isWin;
 Bismo.debugMode = debug;
@@ -46,7 +46,6 @@ Bismo.debugMode = debug;
  * @property {GuildAccount[]} GuildAccounts Guild account array
  */
 const lBismo = {
-
 	GuildAccounts: {},
 	WaitForReply: [],
 	VoiceConnections: {},
@@ -601,6 +600,29 @@ Bismo.GetGuildChannels = function(guildID, type) {
 	return neededChannels;
 }
 
+/**
+ * @typedef {object} GuildChannels
+ * @property {Discord.VoiceChannel[]} VoiceChannels
+ * @property {Discord.TextChannel[]} TextChannels
+ * @property {Discord.StoreChannel[]} StoreChannels
+ * @property {Discord.NewsChannel[]} NewsChannels
+ */
+
+/**
+ * Gets all channels of a particular type in all guilds
+ * @param {"GUILD_TEXT"|"GUILD_VOICE"|"GUILD_CATEGORY"|"GUILD_NEWS"|"GUILD_NEWS_THREAD"|"GUILD_PUBLIC_THREAD"|"GUILD_PRIVATE_THREAD"|"GUILD_STAGE_VOICE"|"UNKNOWN"} [type] - Only return these types of channels
+ * @return {Map<string, (Discord.VoiceChannel[]|Discord.TextChannel[]|Discord.StoreChannel[]|Discord.NewsChannel[])>} Channels 
+ */
+Bismo.GetChannels = function(type) {
+	// Get all guildIds, foreach get channels.
+	let channels = new Map();
+	let guilds = [...Client.guilds.cache.values()];
+	for (var i = 0; i<guilds.length; i++) {
+		channels.set(guilds[i].id) = Bismo.GetGuildChannels(guilds[i].id, type);
+	}
+	return channels;
+}
+
 // Return the voice channel ID that user $userId is in on the guild $guildId
 /**
  * Get the current voice channel a user is in within a guild
@@ -625,7 +647,7 @@ Bismo.GetCurrentVoiceChannel = function(guildId, userId) {
 // Return the channel object for $channelId in guild $ID
 /**
  * Get the channel object of a channel in a guild
- * @param {string} guildID Channel is in this guild
+ * @param {string} [guildID] - Channel is in this guild
  * @param {string} channelId The channel ID to get
  * @return {(Discord.TextChannel|Discord.VoiceChannel|Discord.NewsChannel|Discord.StoreChannel)} Channel object
  */
@@ -637,8 +659,9 @@ Bismo.GetGuildChannelObject = function(guildID,channelId) {
 				var channels = [lBismo.GuildObjects[guildObject].channels.cache.values()]; // god bless
 				for (var i = 0; i<channels.length; i++) {
 					if (channels[i].id == channelID) {
-						guildID = guildObject;
-						break;
+						// guildID = guildObject;
+						return channels[i];
+						// break;
 					}
 				}
 				if (guildID != undefined)
@@ -1223,7 +1246,6 @@ Bismo.Permissions.GetRaw = function(guildId) {
 }
 
 
-
 // Plug-ins
 var Plugins = {};
 const { readdirSync, statSync } = require('fs')
@@ -1386,9 +1408,6 @@ for (var i = 0; i<dirs.length; i++) {
 		}
 	}());
 }
-
-
-
 
 
 
@@ -1680,7 +1699,6 @@ Client.on("messageCreate", message => {
 			}
 			else {
 				(async function () { // nasty catcher v923
-
 					cmd.handler(commandData);
 				})().catch((err)=>{
 					console.error("[B] Command error, cmd: " + command + ".\nFull message: " + message.content);
@@ -1876,45 +1894,45 @@ Client.on("ready", async () => {
 	// Register the slash commands now
 	// Client.api.applications(Client.user.id).commands.put({data: []}); // clear the commands first
 	// We should check to see if our commands actually updated or not. If they did: remove/add as needed. If they did not: do nothing.
-	Bismo.InteractionManager.Unlock(); // Unlock the interaction manager
-	Bismo.InteractionManager.UpdateCache().then(async function () {
-		if (awaitingRegister.length >= 1)
-			for (var i = 0; i < awaitingRegister.length; i++) { // For each slash command needing to be registered.
-				let alias = awaitingRegister[i];
-				let cmd = Commands.get(alias);
-				if (!cmd.slashCommand)
-					continue;
+	// TEMP >> //Bismo.InteractionManager.Unlock(); // Unlock the interaction manager
+	// Bismo.InteractionManager.UpdateCache().then(async function () {
+	// 	if (awaitingRegister.length >= 1)
+	// 		for (var i = 0; i < awaitingRegister.length; i++) { // For each slash command needing to be registered.
+	// 			let alias = awaitingRegister[i];
+	// 			let cmd = Commands.get(alias);
+	// 			if (!cmd.slashCommand)
+	// 				continue;
 
-				let body = {
-					name: alias,
-					description: cmd.description,
-					type: "CHAT_INPUT",
-					options: cmd.slashCommandOptions,
-				};
-				if (cmd != undefined) {
-					try {
-						if (cmd.whitelistGuilds != undefined) {
-							await Bismo.InteractionManager.RegisterGuildCommand(body, cmd.whitelistGuilds, true);
-						} else {
-							if (debug) {
-								let guilds = ['756391901099458600']; // Debug clan
-								await Bismo.InteractionManager.RegisterGuildCommand(body, guilds);
-							} else {
-								// Register command globally
-								await Bismo.InteractionManager.RegisterGlobalCommand(body);
-							}
-						}
-						console.log("[B] Registered `" + alias + "`");
-					} catch (e) {
-						// failed
-						// console.log(e)
-						console.log("[B] Failed to register `" + alias + "`");
-					}
-				}
-			}
+	// 			let body = {
+	// 				name: alias,
+	// 				description: cmd.description,
+	// 				type: "CHAT_INPUT",
+	// 				options: cmd.slashCommandOptions,
+	// 			};
+	// 			if (cmd != undefined) {
+	// 				try {
+	// 					if (cmd.whitelistGuilds != undefined) {
+	// 						await Bismo.InteractionManager.RegisterGuildCommand(body, cmd.whitelistGuilds, true);
+	// 					} else {
+	// 						if (debug) {
+	// 							let guilds = ['756391901099458600']; // Debug clan
+	// 							await Bismo.InteractionManager.RegisterGuildCommand(body, guilds);
+	// 						} else {
+	// 							// Register command globally
+	// 							await Bismo.InteractionManager.RegisterGlobalCommand(body);
+	// 						}
+	// 					}
+	// 					console.log("[B] Registered `" + alias + "`");
+	// 				} catch (e) {
+	// 					// failed
+	// 					// console.log(e)
+	// 					console.log("[B] Failed to register `" + alias + "`");
+	// 				}
+	// 			}
+	// 		}
 
-		Bismo.InteractionManager.RemoveStaleCommands(); // Remove leftover commands
-	}); // Register commands
+	// 	Bismo.InteractionManager.RemoveStaleCommands(); // Remove leftover commands
+	// }); // Register commands
 
 
 	fs.readFile('./Data/Guilds.json', 'utf8', (err, data) => {
@@ -2037,15 +2055,20 @@ Bismo.RegisterCommand("ping", message => {
 	requireParams: false,
 	chatCommand: true,
 	slashCommand: true
-})
+});
+
+Bismo.Events.bot.on('shutdown', (time) => {
+	console.log("[Event: Shutdown] shutdownTimeout: " + time);
+});
 
 
 Shutdown = async function() {
 	console.log("\nShutting down");
 
 	var shutdownTimeout = lBismo.Config.shutdownTimeout;
-	if (typeof shutdownTimeout !== "number")
-		shutdownTimeout = 5000;
+	if (typeof shutdownTimeout !== "number") {
+		shutdownTimeout = (debug)? 1000 : 5000;
+	}
 
 
 	console.log("Notifying plugins @Bismo.Events.Bot#shutdown:" + shutdownTimeout);
@@ -2094,3 +2117,4 @@ prompt();
 // Okay, we're ready to "start"
 // go for launch
 Client.login(lBismo.Config.Discord.token);
+process.Client = Client;

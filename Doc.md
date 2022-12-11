@@ -372,7 +372,4 @@ Roles:\
 
 
 ## Audio
-Playing audio into voice channels on Discord can be complicated.  Luckily Discord.JS has made it easy via Discord.JS/Voice, however, only one audio source can be played at once so we need some way to manage all of these plugins and audio focus.
-
-yada-yada, work in progress.
-Essentially allow plugins to request the voiceconnection all willynilly, but, scrub the subscribe function from that instance if possible, or redirect the function to Bismo.FocusAudio(voiceConnection)
+See `.\Support\VoiceManager.md`

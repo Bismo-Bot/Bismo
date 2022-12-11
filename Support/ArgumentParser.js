@@ -114,7 +114,7 @@ class ArgumentParser {
 	 * @returns {boolean}
 	 */
 	IsPresent(argumentName) {
-		return (this.argumentName[argumentName] != undefined);
+		return (this.arguments[argumentName] != undefined);
 	}
 }
 
