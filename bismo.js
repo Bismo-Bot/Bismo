@@ -40,6 +40,11 @@ Bismo.Version = new Version(0, 3, 2, ((debug)?"debug":"release"), "VoiceManager1
 Bismo.isWindows = isWin;
 Bismo.debugMode = debug;
 
+/** @type {import('./Support/LogMan').LogMan} */
+const LogMan = require('./Support/LogMan.js').LogMan;
+/** @type {LogMan} */
+Bismo.LogMan = new LogMan("Bismo", "./Logs", { fileWriteLevel: { silly: debug }, consoleDisplayLevel: { silly: false }, cleanLog: true });
+
 /**
  * Internal Bismo data
  * @type {object} lBismo

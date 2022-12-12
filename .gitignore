@@ -15,6 +15,7 @@ Plugins/*
 # =======
 # Data
 # =======
+Logs/
 Data/
 Config*.json
 Guilds.json

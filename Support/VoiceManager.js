@@ -4,6 +4,7 @@ const DiscordVoice = require('@discordjs/voice');
 
 const crypto = require("node:crypto");
 const { isArrayBufferView } = require('node:util/types');
+const { DiscordAPIError, VoiceChannel } = require('discord.js');
 
 
 /**
@@ -235,6 +236,16 @@ class BismoAudioPlayer extends EventEmitter {
         this.#VoiceChannelIds = voiceChannelIds;
         return this.#VoiceChannelIds;
     }
+
+    /**
+     * Unsubscribes the BAP from all channels and destroys the AudioPlayer
+     */
+    Destroy() {
+        this.#VoiceManager.Unsubscribe(this.#VoiceChannelIds);
+        this.AudioPlayer.stop();
+        delete this.AudioPlayer();
+        delete this;
+    }
 }
 
 /**
@@ -276,15 +287,35 @@ class BismoVoiceChannel extends EventEmitter {
         CurrentPlayer: undefined
     }
 
+    /** @type {import('./LogMan.js').Logger} */
+    #log;
+
+    /**
+     * @type {VoiceManagerOptions}
+     */
+    options = {
+        selfDeaf: true,
+        selfMute: false,
+    };
+
+    /**
+     * 
+     * @typedef {object} VoiceManagerOptions
+     * @property {boolean} selfDeaf - Should we be deafened in the VoiceChannel? Default: true
+     * @property {boolean} selfMute - Should we be muted in the VoiceChannel? Default: false
+     */
 
     /**
      * @param {VoiceManager} voiceManager - Parent VoiceManager class
      * @param {(Discord.VoiceChannel|string)} voiceChannelId - It would be smart to just pass the voice channel object. If you do not we'll have to search for it (slow)
      * @param {string} [guildId=undefined] - Guild id containing this voice channel
+     * @param {VoiceManagerOptions} options - Various options, such as selfDeaf and selfMute which are passed when creating the VoiceConnection
      */
-    constructor(voiceManager, voiceChannelId, guildId) {
+    constructor(voiceManager, voiceChannelId, guildId, options) {
         super();
         
+        this.#log = process.Bismo.LogMan.getLogger("BVC-" + voiceChannelId);
+
         this.#VoiceManager = voiceManager;
         if (typeof voiceChannelId !== "string") {
             if (voiceChannelId.id !== undefined) {
@@ -300,19 +331,34 @@ class BismoVoiceChannel extends EventEmitter {
 
         if (this.ChannelObject.type != "GUILD_VOICE" && this.ChannelObject.type != "DM" && this.ChannelObject.type != "GROUP_DM")
             throw new Error("Invalid channel!");
+
+        if (options != undefined) {
+            if (typeof options.selfDeaf == "boolean")
+                this.options.selfDeaf = options.selfDeaf;
+            if (typeof options.selfMute == "boolean")
+                this.options.selfMute = options.selfMute;
+        }
+
         if (typeof this.ChannelObject.permissionsFor != "function")
             return undefined;
         let permissions = this.ChannelObject.permissionsFor(process.Client.user)
         if (!permissions.has("CONNECT"))
             throw new Error("No VoiceChannel permission: connect");
-//        if (!permissions.has("SPEAK")) // We can probably ignore that...
-//            throw new Error("No VoiceChannel permission: speak");
+
+        if (!this.options.selfMute)
+            if (!permissions.has("SPEAK")) // We can probably ignore that...
+                throw new Error("No VoiceChannel permission: speak");
 
         if (this.ChannelObject === undefined)
             throw new Error("Undefined VoiceChannelObject!");
     }
 
 
+    /**
+     * Returns whether a BismoAudioPlayer is subscribed to this BismoVoiceChannel (it is inside the Focus Stack)
+     * @param {BismoAudioPlayer} bismoAudioPlayer
+     * @return {boolean} bismoAudioPlayer present in Focus Stack
+     */
     #IsBismoAudioPlayerSubscribed(bismoAudioPlayer) {
         let players = this.GetBismoAudioPlayers(true);
         players.forEach((player) => {
@@ -321,6 +367,11 @@ class BismoVoiceChannel extends EventEmitter {
         });
         return false;
     }
+    /**
+     * Throws an error if a BismoAudioPlayer is not subscribed to this BismoVoiceChannel
+     * @param {BismoAudioPlayer} bismoAudioPlayer
+     * @throws {Error} - Player not found in focus stack
+     */
     #CheckIsBismoAudioPlayerSubscribed(bismoAudioPlayer) {
         let subscribed = this.#IsBismoAudioPlayerSubscribed(bismoAudioPlayer);
         if (!subscribed)
@@ -400,7 +451,11 @@ class BismoVoiceChannel extends EventEmitter {
         if (!Array.isArray(bismoAudioPlayers))
             bismoAudioPlayers = [bismoAudioPlayers];
 
+        let subbedPlayers = [];
         for (var i = 0; i<bismoAudioPlayers.length; i++) {
+            if (!(bismoAudioPlayers[i] instanceof BismoAudioPlayer))
+                continue;
+
             // Make sure this is not already subscribed.
             let subscribed = this.#IsBismoAudioPlayerSubscribed(bismoAudioPlayers[i]);
             if (subscribed) {
@@ -419,8 +474,20 @@ class BismoVoiceChannel extends EventEmitter {
 
             // Update player (literal, current)
             bismoAudioPlayers[i].FocusLevel.set(this.Id, focusLevel);
-            this.#UpdateCurrentPlayer();
+            bismoAudioPlayers[i].emit('subscribed', {
+                voiceChannel: this,
+                focusLevel: focusLevel,
+            });
+            subbedPlayers.push(bismoAudioPlayers[i]);
+
+            this.#log.debug("BAP subscribed: " + bismoAudioPlayers[i].Id);
         }
+        
+        this.emit('subscribe', {
+            bismoAudioPlayers: subbedPlayers,
+            focusLevel: focusLevel,
+        });
+        this.#UpdateCurrentPlayer();
     }
     /**
      * Unsubscribes an audio player (`BismoAudioPlayer`) from this voice channel
@@ -430,13 +497,17 @@ class BismoVoiceChannel extends EventEmitter {
         if (!Array.isArray(bismoAudioPlayers))
             bismoAudioPlayers = [bismoAudioPlayers];
 
+        let unsubbedPlayers = [];
         for (var i = 0; i<bismoAudioPlayers.length; i++) {
+            if (!(bismoAudioPlayers[i] instanceof BismoAudioPlayer))
+                continue;
+
             // Make sure this is subscribed.
             let subscribed = this.#IsBismoAudioPlayerSubscribed(bismoAudioPlayers[i]);
             if (!subscribed) {
                 // hmm... okay? Remove us from that player and exit
                 bismoAudioPlayers[i].FocusLevel.delete(this.Id);
-                return;
+                continue;
             }
 
             // Remove
@@ -457,8 +528,19 @@ class BismoVoiceChannel extends EventEmitter {
 
             // Update player (literal, current)
             bismoAudioPlayers[i].FocusLevel.delete(this.Id);
-            this.#UpdateCurrentPlayer();
+            bismoAudioPlayers[i].emit("unsubscribed", {
+                voiceChannel: this,
+            });
+
+            this.#log.debug("BAP unsubscribed: " + bismoAudioPlayers[i].Id);
+
+            unsubbedPlayers.push(bismoAudioPlayer[i]);
         }
+
+        this.emit('unsubscribe', {
+            bismoAudioPlayers: unsubbedPlayers,
+        });
+        this.#UpdateCurrentPlayer(); // Do this after everything is subscribed.
     }
 
 
@@ -480,40 +562,58 @@ class BismoVoiceChannel extends EventEmitter {
                 this.emit("connect", { voiceConnection: attempt });
                 return attempt;
             }
-        } else {
-            let connection = DiscordVoice.joinVoiceChannel({
-                channelId: this.Id,
-                guildId: this.ChannelObject.guildId,
-                adapterCreator: this.ChannelObject.guild.voiceAdapterCreator,
-                selfDeaf: false,
-                selfMute: false,
-            });
-
-            // Listen for state changes, destroy on disconnect
-            connection.on(DiscordVoice.VoiceConnectionStatus.Disconnected, async(oldState, newState) => {
-                try {
-                    await Promise.race([
-                        DiscordVoice.entersState(connection, DiscordVoice.VoiceConnectionStatus.Signalling, 5_000),
-                        DiscordVoice.entersState(connection, DiscordVoice.VoiceConnectionStatus.Connecting, 5_000),
-                    ]);
-                    // Seems to be reconnecting to a new channel
-                } catch (error) {
-                    // Seems to be a real disconnect which SHOULDN'T be recovered from
-                    connection.destroy();
-                    this.Disconnect();
-                }
-            });
-
-            connection.on(DiscordVoice.VoiceConnectionStatus.Destroyed, () => {
-                Bismo.log("[VC] Connection destroyed: " + voiceChannelID);
-            });
-            
-            this.emit("connect", { voiceConnection: connection });
-            return connection;
         }
+        let connection = DiscordVoice.joinVoiceChannel({
+            channelId: this.Id,
+            guildId: this.ChannelObject.guildId,
+            adapterCreator: this.ChannelObject.guild.voiceAdapterCreator,
+            selfDeaf: this.options.selfDeaf,
+            selfMute: this.options.selfMute,
+        });
+
+        // Listen for state changes, destroy on disconnect
+        connection.on(DiscordVoice.VoiceConnectionStatus.Disconnected, async(oldState, newState) => {
+            try {
+                await Promise.race([
+                    DiscordVoice.entersState(connection, DiscordVoice.VoiceConnectionStatus.Signalling, 5_000),
+                    DiscordVoice.entersState(connection, DiscordVoice.VoiceConnectionStatus.Connecting, 5_000),
+                ]);
+                // Seems to be reconnecting to a new channel
+            } catch (error) {
+                // Seems to be a real disconnect which SHOULDN'T be recovered from
+                connection.destroy();
+                this.Disconnect();
+            }
+        });
+
+        connection.on(DiscordVoice.VoiceConnectionStatus.Destroyed, () => {
+            this.#log.warn("VoiceConnection destroyed");
+        });
+        
+        this.#log.info("Connected!");
+        this.emit("connect", { voiceConnection: connection });
+        return connection;
     }
 
+    /**
+     * Disconnects the VoiceConnection (leaves the voice channel), however, you can reconnect using `.Connect()`
+     * @param {boolean} force - Not used currently
+     */
     Disconnect(force) {
+        let voiceConnection = this.GetVoiceConnection();
+        if (voiceConnection !== undefined)
+            if (voiceConnection.state != DiscordVoice.VoiceConnectionStatus.Destroyed)
+                voiceConnection.destroy();
+        this.#log.info("Disconnected");
+        this.emit("disconnect", { force: force });
+    }
+
+    /**
+     * Unsubscribes all BismoAudioPlayers, (destroys them if they have no other subscriptions), and destroys the voiceConnection.
+     * This is intended to be used to, well, destroy the BVC. A new one must be created.
+     */
+    Destroy() {
+        this.Disconnect(true);
         let allPlayers = this.GetBismoAudioPlayers(true);
         if (force) {
             allPlayers.forEach((player) => {
@@ -525,23 +625,16 @@ class BismoVoiceChannel extends EventEmitter {
         } else {
             this.Unsubscribe(allPlayers);
         }
-
-        let voiceConnection = this.GetVoiceConnection();
-        if (voiceConnection.state != DiscordVoice.VoiceConnectionStatus.Destroyed)
-            voiceConnection.disconnect();
-        this.emit("disconnect", { force: force });
-    }
-
-    Destroy() {
-        this.Disconnect(true);
         this.ChannelObject = undefined;
         let voiceConnection = this.GetVoiceConnection();
-        if (voiceConnection.state != DiscordVoice.VoiceConnectionStatus.Destroyed) {
-            voiceConnection.setSpeaking(0);
-            voiceConnection.dispatchAudio();
-            voiceConnection.disconnect();
-            voiceConnection.destroy();
-        }
+        if (voiceConnection !== undefined)
+            if (voiceConnection.state != DiscordVoice.VoiceConnectionStatus.Destroyed) {
+                voiceConnection.setSpeaking(0);
+                voiceConnection.dispatchAudio();
+                voiceConnection.disconnect();
+                voiceConnection.destroy();
+            }
+        this.#log.info("Destroyed");
         this.emit("destroy");
         delete this;
     }
@@ -668,7 +761,7 @@ class BismoVoiceChannel extends EventEmitter {
         newLevelPlayers.push(bap);
         this.Focus.Stack.set(newLevel, newLevelPlayers);
 
-        bismoAudioPlayer.FocusLevel.set(this.Id, newLevel);
+        bap.FocusLevel.set(this.Id, newLevel);
 
         this.#UpdateCurrentPlayer();
     }
@@ -715,22 +808,6 @@ class VoiceManager extends EventEmitter {
      */
     Client;
 
-    /**
-     * Map of focus level and array of BismoAudioPlayer ids (the last one entered is the "focused" one. I.E length-1 gets you the top of stack player. Makes it quicker to insert BAPs)
-     * @typedef {Map<number,number[]>} FocusStack
-     */
-
-    /**
-     * Voice channel subscriptions holds the FocusStack of each voice channel
-     * @type {Map<string,FocusStack>} 
-     */
-    #VoiceChannelSubscriptions = new Map();
-
-    /**
-     * All 'active' BAPs (i.e. subscribed to a channel somewhere). Map pair with the `number` being the Id of the BAP.
-     * @type {Map<number,BismoAudioPlayer>}
-     */
-    #BismoAudioPlayers = new Map();
 
     /**
      * Voice channels, a map of voiceChannelIds to BismoVoiceChannels
@@ -778,29 +855,47 @@ class VoiceManager extends EventEmitter {
         return new BismoAudioPlayer(this, crypto.randomUUID(), BAPProperties);
     }
 
-
+    /**
+     * Returns or creates a BismoVoiceChanel object given a VoiceChannel id or object
+     * @param {(VoiceChannel|VoiceChannel[]|string|string[])} voiceChannelIds - Can be one VoiceChannel, an array of them, one string (of a voice channel id), or an array of voice channel ids.
+     * @param {string[]} [guildIds] - Guild ids of the guilds the voice channels live in. ONLY necessary IF you provide a string or an array of strings the voiceChannelIds parameter. 
+     * @return {(BismoVoiceChannel|Map<string, BismoVoiceChannel>)} either a single BismoVoiceChannel or a map where the voice channel id points to the BismoVoiceChannel
+     */
     GetBismoVoiceChannel(voiceChannelIds, guildIds) {
         voiceChannelIds = this.#voiceChannelIdArrayCheck(voiceChannelIds);
         guildIds = this.#voiceChannelIdArrayCheck(guildIds);
 
-        if (voiceChannelIds.length !== guildIds.length)
-            throw new Error("voiceChannelId and guidId must be the same length. #voiceChannels: " + voiceChannelIds.length + " and #guildIds: " + guildIds.length);
+        let results = new Map();
 
+        if (!isArrayOfType(voiceChannelIds, VoiceChannel))
+            if (voiceChannelIds.length !== guildIds.length)
+                throw new Error("voiceChannelId and guidId must be the same length. #voiceChannels: " + voiceChannelIds.length + " and #guildIds: " + guildIds.length);
 
         for (var i = 0; i<voiceChannelIds.length; i++) {
             let voiceChannelObject;
-            if (!this.#VoiceChannels.has(voiceChannelIds[i])) {
+            let vcid = voiceChannelIds;
+            let gid = 0;
+            if (voiceChannelIds[i] instanceof VoiceChannel)
+                vcid = voiceChannelIds[i].id;
+            else
+                gid = guildIds[i];
+
+            if (!this.#VoiceChannels.has(vcid)) {
                 // Create it
-                voiceChannelObject = new BismoVoiceChannel(this, voiceChannelIds[i], guildIds[i]);
-                this.#VoiceChannels.set(voiceChannelIds[i], voiceChannelObject);
+                voiceChannelObject = new BismoVoiceChannel(this, vcid, gid);
+                this.#VoiceChannels.set(vcid, voiceChannelObject);
 
                 voiceChannelObject.on('destroy', (destroyObject) => {
-                    this.#VoiceChannels.delete(voiceChannelIds[i]); // Delete on destroy
+                    this.#VoiceChannels.delete(vcid); // Delete on destroy
                 });
-            } else
-                return this.#VoiceChannels.get(voiceChannelIds[i]);
-            return voiceChannelObject;
+            }
+            if (voiceChannelIds.length == 1)
+                return this.#VoiceChannels.get(vcid);
+            else
+                result.set(vcid, this.#VoiceChannels.get(vcid))
         }
+
+        return results;
     }
 
 
@@ -871,6 +966,9 @@ class VoiceManager extends EventEmitter {
      * @return {(bool|Map<string,bool>)} Whether we successfully disconnected from a channel or not. Map is the channel id and whether disconnect was successful (if multiple vcIds provided).
      */
     Disconnect(voiceChannelIds, force) {
+        if (voiceChannelIds == undefined)
+            voiceChannelIds = Array.from(this.#VoiceChannels.values());
+
         // unsubscribe all BAPs, if fail and not force: cancel
         // force does not run Unsubscribe, calls Destroy() for all BAPs and leaves the VC
         voiceChannelIds = this.#voiceChannelIdArrayCheck(voiceChannelIds);
@@ -1166,23 +1264,20 @@ class VoiceManager extends EventEmitter {
     CleanUp(force) {
         // disconnect all active voice channels, remove all BAPs (via Destroy() calls)
         // force = no unsubscribe, !force = unsubscribe each BAP
-        this.Disconnect(force);
+        this.#VoiceChannels.forEach((voiceChannel) => {
+            voiceChannel.Disconnect(force);
+        });
+        this.emit('cleanup', force)
     }
     /**
-     * Little difference to `CleanUp()`, however, meant to be used when shutting down. Unsubscribing is pointless so we use force in `CleanUp(true)`. Again no major difference, we just don't have to be nice in this one.
-     * @param {bool} force Skips the `Destroy()` calls, just disconnects from voice channels AS FAST AS POSSIBLE. Not recommended.
+     * Destroys all BismoVoiceChannels we know of.
      */
-    Shutdown(force) {
+    Shutdown() {
         // calls CleanUp, used during Bismo shutdown
-        this.CleanUp(force);
-    }
-    /**
-     * Calls `CleanUp()` essentially, think `Shutdown()` but with the intention of continuing to be useful.
-     * @param {bool} hard Think of this as the `force` parameter in `CleanUp()`, attempt to not use it.
-     */
-    Reset(hard) {
-        // similar to shutdown, intended to keep VoiceManager going, clean up
-        this.CleanUp(hard);
+        this.#VoiceChannels.forEach((voiceChannel) => {
+            voiceChannel.Destroy();
+        });
+        this.emit('shutdown');
     }
 
 
