@@ -458,7 +458,9 @@ class LogMan extends EventEmitter {
 		consolePrefix = consolePrefix.replace("%logName%", this.#logName);
 
 		var message = ((sectionName!==undefined)? ("[" + sectionName + "]") : "") + "[" + level + "] " + msg;				// Only display section name if defined
-		var messageFile = "[" + level + "]" + ((sectionName!==undefined)? ("[" + sectionName + "] ") : " ") + msg; 	// Only display section name if defined
+		//var messageFile = "[" + level + "]" + ((sectionName!==undefined)? ("[" + sectionName + "] ") : " ") + msg; 	// Only display section name if defined
+		var messageFile = message;
+		// NO!:
 		// File: [Debug][Section] msg... || console: [Section][Debug] msg ...
 
 		var consoleSufix = "";

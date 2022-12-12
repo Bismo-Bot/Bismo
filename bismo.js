@@ -35,7 +35,7 @@ const Bismo = {}
 
 process.Bismo = Bismo;
 
-Bismo.Version = new Version(0, 3, 2, ((debug)?"debug":"release"), "VoiceManager1");;
+Bismo.Version = new Version(0, 3, 2, ((debug)?"debug":"release"), "VoiceManager2");;
 
 Bismo.isWindows = isWin;
 Bismo.debugMode = debug;
@@ -43,7 +43,7 @@ Bismo.debugMode = debug;
 /** @type {import('./Support/LogMan').LogMan} */
 const LogMan = require('./Support/LogMan.js').LogMan;
 /** @type {LogMan} */
-Bismo.LogMan = new LogMan("Bismo", "./Logs", { fileWriteLevel: { silly: debug }, consoleDisplayLevel: { silly: false }, cleanLog: true });
+Bismo.LogMan = new LogMan("Bismo", "./Logs", { fileWriteLevel: { silly: debug }, consoleDisplayLevel: { silly: false, debug: debug }, cleanLog: true });
 
 /**
  * Internal Bismo data
@@ -2026,6 +2026,8 @@ Shutdown = async function() {
 
 	console.log("[D] Logging off ...");
 	Client.destroy();
+
+	Bismo.LogMan.close();
 	await SF.sleep(500);
 	process.exit(0);
 }

@@ -20,7 +20,7 @@ const { DiscordAPIError, VoiceChannel } = require('discord.js');
  */
 function isArrayOfType(data, type) {
     return Array.isArray(data) && data.every(elem => {
-        if (typeof type === "object")
+        if (typeof type === "function")
             return elem instanceof type
         else
             return typeof elem === type
@@ -480,7 +480,7 @@ class BismoVoiceChannel extends EventEmitter {
             });
             subbedPlayers.push(bismoAudioPlayers[i]);
 
-            this.#log.debug("BAP subscribed: " + bismoAudioPlayers[i].Id);
+            this.#log.debug("BAP (" + bismoAudioPlayers[i].Id + ") subscribed! Name: \"" + bismoAudioPlayers[i].Name + "\" (plugin: \"" + bismoAudioPlayers[i].PluginName + "\")");
         }
         
         this.emit('subscribe', {
@@ -615,16 +615,12 @@ class BismoVoiceChannel extends EventEmitter {
     Destroy() {
         this.Disconnect(true);
         let allPlayers = this.GetBismoAudioPlayers(true);
-        if (force) {
-            allPlayers.forEach((player) => {
-                if (player.GetVoiceChannelIds().length == 1)
-                    player.Destroy();
-                else
-                    this.Unsubscribe(player); //err ehh ignore it
-            });
-        } else {
-            this.Unsubscribe(allPlayers);
-        }
+        allPlayers.forEach((player) => {
+            if (player.GetVoiceChannelIds().length == 1)
+                player.Destroy();
+            else
+                this.Unsubscribe(player); //err ehh ignore it
+        });
         this.ChannelObject = undefined;
         let voiceConnection = this.GetVoiceConnection();
         if (voiceConnection !== undefined)
@@ -648,6 +644,8 @@ class BismoVoiceChannel extends EventEmitter {
      * @return {(DiscordVoice.VoiceConnection|undefined)}
      */
     GetVoiceConnection() {
+        if (this.ChannelObject == undefined)
+            return undefined
         return DiscordVoice.getVoiceConnection(this.ChannelObject.guildId);
     }
 
@@ -829,6 +827,11 @@ class VoiceManager extends EventEmitter {
 
         this.Client = client;
         this.Bismo = bismo;
+
+        let actualThis = this;
+        this.Bismo.Events.bot.on('shutdown', () => {
+            actualThis.Shutdown();
+        });
     }
 
 
@@ -841,7 +844,7 @@ class VoiceManager extends EventEmitter {
         if (!Array.isArray(voiceChannelId)) {
             voiceChannelId = [voiceChannelId];
         }
-        if (!isArrayOfType(voiceChannelId, "string"))
+        if (!isArrayOfType(voiceChannelId, "string") && !isArrayOfType(voiceChannelId, VoiceChannel))
             throw new TypeError("voiceChannelId expected an array of strings.");
         
         return voiceChannelId;
@@ -863,7 +866,8 @@ class VoiceManager extends EventEmitter {
      */
     GetBismoVoiceChannel(voiceChannelIds, guildIds) {
         voiceChannelIds = this.#voiceChannelIdArrayCheck(voiceChannelIds);
-        guildIds = this.#voiceChannelIdArrayCheck(guildIds);
+        if (!isArrayOfType(voiceChannelIds, VoiceChannel))
+            guildIds = this.#voiceChannelIdArrayCheck(guildIds);
 
         let results = new Map();
 
@@ -875,8 +879,10 @@ class VoiceManager extends EventEmitter {
             let voiceChannelObject;
             let vcid = voiceChannelIds;
             let gid = 0;
-            if (voiceChannelIds[i] instanceof VoiceChannel)
+            if (voiceChannelIds[i] instanceof VoiceChannel) {
                 vcid = voiceChannelIds[i].id;
+                gid = voiceChannelIds[i].guildId;
+            }
             else
                 gid = guildIds[i];
 
