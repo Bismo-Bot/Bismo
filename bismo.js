@@ -695,65 +695,9 @@ Bismo.GetGuildChannelObject = function(guildID,channelId) {
 	return undefined;
 }
 
-// Return a DiscordVoice.VoiceConnection
-/**
- * Get the voice connection object for a voice chat (object to send/receive audio). **Please utilize the VoiceManager rather than directly interacting with VoiceConnections**
- * @param {string} voiceChannelID Channel ID of the voice chat we're managing
- * @param {string} guildID Guild this voice chat lives in
- * @returns {DiscordVoice.VoiceConnection} VoiceConnection object 
- */
-Bismo.GetVoiceConnection = function(voiceChannelID, guildID) {
-	if (typeof voiceChannelID !== "string") {
-		throw new TypeError("Expected voiceChannelID to be type string, go type " + typeof voiceChannelID);
-	}
 
-	let voiceConnection = lBismo.VoiceConnections[voiceChannelID];
-	if (voiceConnection !== undefined)
-		return voiceConnection;
 
-	let guildChannel = Bismo.GetGuildChannelObject(guildID, voiceChannelID);
-	if (guildChannel == undefined)
-		return undefined;
 
-	if (guildChannel.type != "voice" && guildChannel.type != "dm")
-        return undefined;
-    if (typeof guildChannel.permissionsFor != "function")
-        return undefined;
-    let permissions = guildChannel.permissionsFor(Client.user)
-    if (!permissions.has("CONNECT"))
-        throw new NoVoiceChannelPermissions("connect");
-    if (!permissions.has("SPEAK"))
-        throw new NoVoiceChannelPermissions("speak");
-
-    // Okay there should be a join-able voice channel were we can speak in.
-    let connection = DiscordVoice.joinVoiceChannel({
-        channelId: guildChannel.id,
-        guildId: guildID,
-        adapterCreator: guildChannel.guild.voiceAdapterCreator,
-    });
-
-    connection.on(DiscordVoice.VoiceConnectionStatus.Destroyed, () => {
-    	Bismo.log("[VC] Connection destroyed: " + voiceChannelID);
-    	delete lBismo.VoiceConnections[voiceChannelID];
-    });
-
-    connection.on(DiscordVoice.VoiceConnectionStatus.Disconnected, async () => {
-		try {
-			await Promise.race([
-				DiscordVoice.entersState(connection, DiscordVoice.VoiceConnectionStatus.Signalling, 5_000),
-				DiscordVoice.entersState(connection, DiscordVoice.VoiceConnectionStatus.Connecting, 5_000),
-			]);
-			// Seems to be reconnecting to a new channel - ignore disconnect
-		} catch (error) {
-			// Seems to be a real disconnect which SHOULDN'T be recovered from
-			connection.destroy();
-		}
-	});
-
-    lBismo.VoiceConnections[voiceChannelID] = connection;
-
-    return connection;
-}
 
 // Bismo VoiceManager
 /**
