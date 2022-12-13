@@ -517,19 +517,21 @@ Bismo.AddGuild = function(guildID, data) {
 /**
  * Gets the Bismo Guild object (account)
  * @memberof Bismo
- * @prama {string} guildID Guild ID to grab
+ * @param {string} guildId Guild ID to grab
  * @return {?GuildAccount} GuildAccount object
  */
 
-Bismo.GetBismoGuildObject = function(guildID) {
-	if (lBismo.GuildAccounts[guildID].id == guildID)
-		return lBismo.GuildAccounts[guildID];
+Bismo.GetBismoGuildObject = function(guildId) {
+	if (guildId instanceof GuildAccount)
+		return guildId;
+	if (lBismo.GuildAccounts[guildId].id == guildId)
+		return lBismo.GuildAccounts[guildId];
 
 }
 
 /**
  * Removes a guild with ID from our guild account database (destroy the GuildAccount)
- * @prama {string} guildID Guild guildID to remove
+ * @pram {string} guildID Guild guildID to remove
  */
 
 Bismo.RemoveGuild = function(guildID) {
@@ -542,7 +544,7 @@ Bismo.RemoveGuild = function(guildID) {
 
 /**
  * Get all guild member objects
- * @prama {string} guildId Guild to get members from
+ * @pram {string} guildId Guild to get members from
  * @return {Discord.GuildMemberManager} All guild members
  */
 Bismo.GetGuildUsers = async function(guildId) {
@@ -636,17 +638,30 @@ Bismo.GetChannels = function(type) {
  * @return {Discord.VoiceChannel|undefined} - Voice channel that user is in
  */
 Bismo.GetCurrentVoiceChannel = function(guildId, userId) {
-	voiceChannels = Bismo.GetGuildChannels(guildId, "GUILD_VOICE");
+	if (typeof guildId !== "string")
+		throw new TypeError("guildId expected string got " + (typeof guildId).toString());
+	if (typeof userId !== "string")
+		throw new TypeError("userId expected string got " + (typeof userId).toString());
 
-	for (var i = 0; i<voiceChannels.length; i++)
-	{   
-		var members = [...voiceChannels[i].members.values()];
-		for (var m = 0; m<members.length; m++)
-			if (members[m].id == userId)
-				return voiceChannels[i].id;
-	}
 
-	return undefined;
+	let guildObject = Bismo.GetGuildChannelObject(guildId);
+	if (guildObject === undefined)
+		return undefined;
+
+	if (guildObject.members.has(userId))
+		return guildObject.members.get(userId).voice?.channel;
+
+	// voiceChannels = Bismo.GetGuildChannels(guildId, "GUILD_VOICE");
+
+	// for (var i = 0; i<voiceChannels.length; i++)
+	// {   
+	// 	var members = [...voiceChannels[i].members.values()];
+	// 	for (var m = 0; m<members.length; m++)
+	// 		if (members[m].id == userId)
+	// 			return voiceChannels[i].id;
+	// }
+
+	// return undefined;
 }
 
 // Return the channel object for $channelId in guild $ID
@@ -959,29 +974,16 @@ Bismo.GetDiscordClient = function() {
 
 Bismo.Permissions = {} // Container for permission API calls
 
-/**
- * Takes string/GuildAccount and returns just GuildAccount
- * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
- * @param {string|GuildAccount} obj
- * @returns {GuildAccount}
- */
-function GetGuildObj(obj) {
-	if (typeof obj === "string")
-		return Bismo.GetBismoGuildObject(obj);
-	else
-		return obj;
-}
 
 /**
  * Check if a user has a particular Bismo permission in a guild
- * @param {string|GuildAccount} guildId Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
- * @param {string} userId The user we're checking against
- * @param {string|GuildAccount} guild The guild we're checking against. (Can either be a string (guildId) or the GuildAccount)
- * @param {string} permission The permission we're checking for
+ * @param {string|GuildAccount} guildId - Either the GuildAccount or string represent thing guild's Id. Permissions are unique for each guild.
+ * @param {string} userId - The user we're checking against
+ * @param {string} permission - The permission we're checking for
  * @return {?boolean} Permission's value
  */
 Bismo.Permissions.UserHasPermission = function(guild, userId, permission) {
-	let guildAccount = GetGuildObj(guild);
+	let guildAccount = Bismo.GetBismoGuildObject(guild);
 	return guildAccount?.UserHasPermission(userId, permission);
 }
 
@@ -994,7 +996,7 @@ Bismo.Permissions.UserHasPermission = function(guild, userId, permission) {
  * @param {boolean} permissionValue What the permission will be set to
  */
 Bismo.Permissions.SetUserPermission = function(guild, userId, permission, permissionValue) {
-	let guildAccount = GetGuildObj(guild);
+	let guildAccount = Bismo.GetBismoGuildObject(guild);
 	guildAccount?.SetUserPermission(userId, permission, permissionValue);
 }
 
@@ -1005,7 +1007,7 @@ Bismo.Permissions.SetUserPermission = function(guild, userId, permission, permis
  * @return {boolean}
  */
 Bismo.Permissions.UserExists = function(guildId, userId) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	return guildAccount?.UserExists(userId);
 }
 
@@ -1017,7 +1019,7 @@ Bismo.Permissions.UserExists = function(guildId, userId) {
  * @param {string} role The role we're adding to the user
  */
 Bismo.Permissions.AddUserRole = function(guildId, userId, role) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.AddUserRole(userId, role);
 }
 
@@ -1030,7 +1032,7 @@ Bismo.Permissions.AddUserRole = function(guildId, userId, role) {
  * @param {string} role The role we're removing from the user
  */
 Bismo.Permissions.RemoveUserRole = function(guildId, userId, role) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.RemoveUserRole(userId, role);
 }
 
@@ -1043,7 +1045,7 @@ Bismo.Permissions.RemoveUserRole = function(guildId, userId, role) {
  * @param {string} role The role we're adding to the user
  */
 Bismo.Permissions.SetUserRoles = function(guildId, userId, roles) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.SetUserRoles(userId, roles);
 }
 
@@ -1055,7 +1057,7 @@ Bismo.Permissions.SetUserRoles = function(guildId, userId, roles) {
  * @param {string} userId User we're modifying
  */
 Bismo.Permissions.ClearUserRoles = function(guildId, userId) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.ClearUserRoles(userId);
 }
 
@@ -1067,7 +1069,7 @@ Bismo.Permissions.ClearUserRoles = function(guildId, userId) {
  * @param {string} userId User we're resetting
  */
 Bismo.Permissions.ClearUserPermissions = function(guildId, userId) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.ClearUserPermissions(userId);
 }
 
@@ -1078,7 +1080,7 @@ Bismo.Permissions.ClearUserPermissions = function(guildId, userId) {
  * @param {string} userId
  */
 Bismo.Permissions.DeleteUserPermissions = function(guildId, userId) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.DeleteUserPermissions(userId);
 }
 
@@ -1089,7 +1091,7 @@ Bismo.Permissions.DeleteUserPermissions = function(guildId, userId) {
  * @returns {boolean}
  */
 Bismo.Permissions.RoleExists = function(guildId, role) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.RoleExists(role);
 }
 
@@ -1101,7 +1103,7 @@ Bismo.Permissions.RoleExists = function(guildId, role) {
  * @param {boolean} value
  */
 Bismo.Permissions.SetRolePermission = function(guildId, role, permission, value) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.SetRolePermission(role, permission, value);
 }
 
@@ -1114,7 +1116,7 @@ Bismo.Permissions.SetRolePermission = function(guildId, role, permission, value)
  * @returns {boolean} Removed permissions (false just means they were never set)
  */
 Bismo.Permissions.RemoveRolePermission = function(guildId, role, permission, includingChildren) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	return guildAccount?.RemoveRolePermission(role, permission, includingChildren);
 }
 
@@ -1125,7 +1127,7 @@ Bismo.Permissions.RemoveRolePermission = function(guildId, role, permission, inc
  * @param {string} newName Role's new name
  */
 Bismo.Permissions.RenameRole = function(guildId, currentName, newName) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.RenameRole(currentName, newName);
 }
 
@@ -1135,7 +1137,7 @@ Bismo.Permissions.RenameRole = function(guildId, currentName, newName) {
  * @param {string} role
  */
 Bismo.Permissions.DeleteRole = function(guildId, role) {
-	let guildAccount = GetGuildObj(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	guildAccount?.DeleteRole(role);
 }
 
@@ -1151,7 +1153,7 @@ Bismo.Permissions.DeleteRole = function(guildId, role) {
 Bismo.Permissions.GetRawUserPermissions = function(guildId, userId) {
 	if (typeof userId !== "string")
 		throw new TypeError("userId expected string got " + (typeof userId).toString());
-	let guildAccount = GetGuildObject(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	if (guildAccount?.permissions?.users == undefined)
 		return undefined;
 	return guildAccount.permissions.users[userId]?.permissions;
@@ -1165,7 +1167,7 @@ Bismo.Permissions.GetRawUserPermissions = function(guildId, userId) {
 Bismo.Permissions.GetRawUserRoles= function(guildId, userId) {
 	if (typeof userId !== "string")
 		throw new TypeError("userId expected string got " + (typeof userId).toString());
-	let guildAccount = GetGuildObject(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	if (guildAccount?.permissions?.users == undefined)
 		return undefined;
 	return guildAccount.permissions.users[userId]?.roles;
@@ -1179,7 +1181,7 @@ Bismo.Permissions.GetRawUserRoles= function(guildId, userId) {
 Bismo.Permissions.GetRawRole = function(guildId, role) {
 	if (typeof role !== "string")
 		throw new TypeError("role expected string got " + (typeof role).toString());
-	let guildAccount = GetGuildObject(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	if (guildAccount?.permissions?.roles == undefined)
 		return undefined;
 	return guildAccount.permissions.roles[role];
@@ -1190,7 +1192,7 @@ Bismo.Permissions.GetRawRole = function(guildId, role) {
  * @return {object} permissions dictionary (`{ roles: {}, users: {} }`)
  */
 Bismo.Permissions.GetRaw = function(guildId) {
-	let guildAccount = GetGuildObject(guildId);
+	let guildAccount = Bismo.GetBismoGuildObject(guildId);
 	return guildAccount?.permissions;
 }
 
@@ -1485,6 +1487,9 @@ Client.on('voiceStateUpdate', (oldMember, newMember) => { // Call 'observers'
 	} else if(newUserChannel === undefined){
 		// User leaves a voice channel
 		Bismo.Events.discord.emit('voiceChannelLeave', oldUserChannel, { oldMember: oldMember, newMember: newMember }); // Call observer)
+	} else if (newMember.id == Client.user.id) {
+		// User moved
+		Bismo.Events.discord.emit('voiceChannelMove', { oldMember: oldMember, newMember: newMember });
 	}
 })
 

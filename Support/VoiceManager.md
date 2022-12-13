@@ -108,6 +108,10 @@ unsubscribe: BAP(s) has been unsubscribed
 }`
 
 
+moved: ChannelObject (the voice channel) has been updated successfully. Nothing needs to be done by you. This is emitted and handled by the VoiceManager
+`(oldChannel: VoiceChannel, newChannel: VoiceChannel)`
+
+
 #### Properties
 `#log`: LogMan logger, used to log data and messages to console + terminal
 `#VoiceManager`: Parent VoiceManager class that created this VoiceManager. You _could_ have multiple VoiceManagers going, although this would be inadvisable since they'll fight for control and it defeats the central control idea.
@@ -320,7 +324,23 @@ SetFocusLevel(bap, newLevel) {
  * @return {(Map<number, BismoAudioPlayer[]>|BismoAudioPlayer[])}
  */
 GetBismoAudioPlayers(asArray, level) {
+}
 
+
+/**
+ * Returns the number of listeners in this voice channel.
+ * @param {boolean} [includeBots=false] - Include bots in the count (faster)
+ * @return {number}
+ */
+GetNumberOfListeners(includeBots) {
+}
+
+/**
+ * Checks whether a particular user is present inside a voice channel
+ * @param {string} userId - User id to look for
+ * @return {boolean} user present in voice channel
+ */
+GetUserMemberOfVoiceChannel(userId) {
 }
 ```
 

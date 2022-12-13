@@ -109,6 +109,8 @@ class BismoAudioPlayer extends EventEmitter {
 
         if (typeof id !== "string")
             throw new TypeError("id expected string got " + (typeof id).toString());
+        else
+            id = crypto.randomUUID();
 
         this.#VoiceManager = voiceManager;
         this.Id = id;
@@ -212,38 +214,14 @@ class BismoAudioPlayer extends EventEmitter {
         return this.#VoiceChannelIds;
     }
 
-    // Special set of methods called by VoiceManager to update properties, (such as new subscription, update Id, fire event)
-    // Do not call these yourself, you're asking for trouble.
-    /**
-     * Sets the currently subscribed list of voice channels. DO NOT UPDATE YOURSELF. This is the only "official" list of subscribed channels, and is critical in clean-up.
-     * If you screw with this list and feed data that is not true _bad things will happen!_ (Mostly just a dirty, inefficient voice manager. Would require a audit/hard reset).
-     * @param {(string|string[])} voiceChannelIds List of voice channels to set as subscribed
-     * @return {string[]} Set list of subscribed voiceChannelIds (your input)
-     */
-    SetVoiceChannelIds(voiceChannelIds) {
-        let isArray = Array.isArray(voiceChannelIds);
-        if (typeof voiceChannelIds !== "string" && !isArray)
-            throw new TypeError("voiceChannelIds expected string|string[] got " + (typeof voiceChannelIds).toString());
-
-        if (isArray) {
-            if (expectedType != undefined && expectedType != null) {
-                if (!inputArray.every(i  => typeof i === expectedType)) {
-                    throw new TypeError("inputArray expected " + (expectedType) + "[]");
-                }
-            }
-        }
-
-        this.#VoiceChannelIds = voiceChannelIds;
-        return this.#VoiceChannelIds;
-    }
 
     /**
      * Unsubscribes the BAP from all channels and destroys the AudioPlayer
      */
     Destroy() {
-        this.#VoiceManager.Unsubscribe(this.#VoiceChannelIds);
+        this.#VoiceManager.Unsubscribe(this, this.#VoiceChannelIds);
         this.AudioPlayer.stop();
-        delete this.AudioPlayer();
+        delete this.AudioPlayer;
         delete this;
     }
 }
@@ -272,6 +250,11 @@ class BismoVoiceChannel extends EventEmitter {
     ChannelObject;
 
 
+    /**
+     * Used to prevent multiple destroys from running at once
+     * @type {boolean}
+     */
+    #Destroying;
 
 
     /**
@@ -314,16 +297,18 @@ class BismoVoiceChannel extends EventEmitter {
     constructor(voiceManager, voiceChannelId, guildId, options) {
         super();
         
-        this.#log = process.Bismo.LogMan.getLogger("BVC-" + voiceChannelId);
 
         this.#VoiceManager = voiceManager;
+        this.Id = crypto.randomUUID();
+        this.#log = process.Bismo.LogMan.getLogger("BVC-" + this.Id);
+
         if (typeof voiceChannelId !== "string") {
             if (voiceChannelId.id !== undefined) {
-                this.Id = voiceChannelId.id;
+                // this.Id = voiceChannelId.id;
                 this.ChannelObject = voiceChannelId;
             }
         } else {
-            this.Id = voiceChannelId;
+            // this.Id = voiceChannelId;
             // We don't know the guildId, which is fine, we can just say "hey we don't know which guild this is in, can you search ALL the guilds??"
             // It's stupid, but works. At scale this will be painful.
             this.ChannelObject = this.#VoiceManager.Bismo.GetGuildChannelObject(guildId, voiceChannelId);
@@ -351,6 +336,12 @@ class BismoVoiceChannel extends EventEmitter {
 
         if (this.ChannelObject === undefined)
             throw new Error("Undefined VoiceChannelObject!");
+
+
+        this.on('moved', (oldChannel, newChannel) => {
+            if (oldChannel != undefined && newChannel != undefined)
+            this.#log.debug("Moved from " + oldChannel.id + " to " + newChannel.id);
+        });
     }
 
 
@@ -564,7 +555,7 @@ class BismoVoiceChannel extends EventEmitter {
             }
         }
         let connection = DiscordVoice.joinVoiceChannel({
-            channelId: this.Id,
+            channelId: this.ChannelObject.id,
             guildId: this.ChannelObject.guildId,
             adapterCreator: this.ChannelObject.guild.voiceAdapterCreator,
             selfDeaf: this.options.selfDeaf,
@@ -590,7 +581,7 @@ class BismoVoiceChannel extends EventEmitter {
             this.#log.warn("VoiceConnection destroyed");
         });
         
-        this.#log.info("Connected!");
+        this.#log.info("Connected! VC: " + this.ChannelObject.id);
         this.emit("connect", { voiceConnection: connection });
         return connection;
     }
@@ -613,6 +604,11 @@ class BismoVoiceChannel extends EventEmitter {
      * This is intended to be used to, well, destroy the BVC. A new one must be created.
      */
     Destroy() {
+        if (this.#Destroying == true)
+            return;
+
+        this.#Destroying = true;
+
         this.Disconnect(true);
         let allPlayers = this.GetBismoAudioPlayers(true);
         allPlayers.forEach((player) => {
@@ -785,6 +781,52 @@ class BismoVoiceChannel extends EventEmitter {
         }
         return this.Focus.Stack;
     }
+
+
+    /**
+     * Returns the number of listeners (users) in this voice channel.
+     * @param {boolean} [includeBots=false] - Include bots in the count
+     * @return {number}
+     */
+    GetNumberOfVoiceChannelMembers(includeBots) {
+        if (this.ChannelObject === undefined)
+            return 0;
+        if (this.ChannelObject.type == "DM")
+            return 1;
+        if (this.ChannelObject.members?.cache === undefined)
+            return 0;
+
+        if (includeBots) {
+            return this.ChannelObject.members.size;
+        } else {
+            let count = 0;
+            this.ChannelObject.members.cache.forEach((member) => {
+                if (member != undefined)
+                    if (member.user != undefined)
+                        count += (member.user.bot)? 0 : 1; // Adds 1 if not a bot, 0 if a bot
+            });
+            return count;
+        }
+    }
+
+    /**
+     * Checks whether a particular user is present inside a voice channel
+     * @param {string} userId - User id to look for
+     * @return {boolean} user present in voice channel
+     */
+    GetUserMemberOfVoiceChannel(userId) {
+        if (typeof userId !== "string")
+            return false;
+
+        if (this.ChannelObject === undefined)
+            return false;
+        if (this.ChannelObject.type == "DM")
+            return this.ChannelObject.recipient.id == userId;
+        if (this.ChannelObject.members?.cache === undefined)
+            return false;
+
+        return this.ChannelObject.members.cache.has(userId);
+    }
 }
 
 
@@ -804,7 +846,7 @@ class VoiceManager extends EventEmitter {
      * Discord API
      * @type {Discord.Client}
      */
-    Client;
+    #Client;
 
 
     /**
@@ -825,12 +867,34 @@ class VoiceManager extends EventEmitter {
     constructor(client, bismo) {
         super();
 
-        this.Client = client;
+        this.#Client = client;
         this.Bismo = bismo;
 
         let actualThis = this;
         this.Bismo.Events.bot.on('shutdown', () => {
             actualThis.Shutdown();
+        });
+
+        this.#Client.on('voiceStateUpdate', (oldMember, newMember) => {
+            if (oldMember != undefined && newMember != undefined) {
+                if (newMember.id != actualThis.#Client.user.id)
+                    return; // Not us
+                if (oldMember.channelId == newMember.channelId)
+                    return;
+
+                if (oldMember?.channel == undefined || newMember?.channel == undefined)
+                    return;
+
+                if (actualThis.#VoiceChannels.has(oldMember.channelId)) {
+                    let channelToUpdate = actualThis.#VoiceChannels.get(oldMember.channelId);
+                    channelToUpdate.ChannelObject = newMember.channel;
+
+                    actualThis.#VoiceChannels.set(newMember.channelId, channelToUpdate);
+                    actualThis.#VoiceChannels.delete(oldMember.channelId);
+
+                    channelToUpdate.emit('moved', oldMember.channel, newMember.channel);
+                }
+            }
         });
     }
 

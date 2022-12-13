@@ -103,7 +103,7 @@ _Options:_\
 `.helpMessage`: _(optional) Type: `string`_  display in the bot's help command (/bismohelp) (defaults to description)\
 `.slashCommand`: _(optional, default = false) Type: `boolean`_ Registers the command as a slash command on Discord.\
 `.chatCommand`: _(optional, default = true) Type: `boolean`_ Command is executed via chat (with the appropriate listener cue (!) prefixing the command)\
-`.slashCommandOptions`: _(optional, default = []) Type: `JSON[]`_ Slash commands allow you to specify 'options' (parameters). Use this to provide that information. You'll need to do everything manually.\
+`.slashCommandOptions`: _(optional, default = []) Type: `JSON[]`_ Slash commands allow you to specify 'options' (parameters). Use this to provide that information. You'll need to do everything manually or use a building tool.\
 `.ephemeral`: _(optional, default = true) Type: `string`_ Slash commands only. If true only the author can see replies.\
 `.usersOnly`: _(optional, default = true) Type: `boolean`_ Command only allow to be called by users (and not bots)\
 `.directChannels`: _(optional, default = false) Type: `boolean`_ Runs in direct message channels (not a guild)\
