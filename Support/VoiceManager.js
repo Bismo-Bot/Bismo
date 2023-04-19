@@ -554,6 +554,12 @@ class BismoVoiceChannel extends EventEmitter {
                 return attempt;
             }
         }
+        if (this.ChannelObject === undefined) {
+            // can't do
+            this.#log.warn("No ChannelObject");
+            return undefined;
+        }
+
         let connection = DiscordVoice.joinVoiceChannel({
             channelId: this.ChannelObject.id,
             guildId: this.ChannelObject.guildId,

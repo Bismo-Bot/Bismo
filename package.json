@@ -8,11 +8,11 @@
   },
   "homepage": "https://github.com/Bismo-Bot/Bismo",
   "dependencies": {
-    "discord.js": "^13.8.0",
-    "@discordjs/rest": "^1.1.0",
-    "discord-api-types": "^0.37.4",
-    "@discordjs/voice": "^0.11.0",
     "@discordjs/opus": "^0.8.0",
+    "@discordjs/rest": "^1.1.0",
+    "@discordjs/voice": "^0.16.0",
+    "discord-api-types": "^0.37.4",
+    "discord.js": "^13.8.0",
     "libsodium-wrappers": "^0.7.10",
     "win-dpapi": "^1.1.0"
   }
