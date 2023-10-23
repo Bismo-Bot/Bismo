@@ -22,14 +22,14 @@ var Plugin = {}
  * @param {BismoCommandExecuteData} message
  */
 function getPermission(message) {
-	message.Reply("Permission \"" + message.args[0] + "\"?: " + message.guildAccount.UserHasPermission(message.authorID, message.args[0]));
+	message.Reply("Permission \"" + message.args[0] + "\"?: " + message.guildConfig.UserHasPermission(message.authorID, message.args[0]));
 }
 
 /**
  * @param {BismoCommandExecuteData} message
  */
 function setPermission(message) {
-	
+	message.Reply(message.guildConfig.SetUserPermission(message.authorID, message.args[0], true))
 }
 
 

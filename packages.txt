@@ -10,5 +10,11 @@ discord-api-types	(0.37.4)
 @discordjs/opus 	(0.8.0)
 libsodium-wrappers	(0.7.10)
 
-== (config) Security ==
-win-dpapi		(1.1.0) - Special edits
+
+== Security ==
+futoin-hkdf 		(key creation)
+keytar 				(OS keychain)
+bcrypt
+
+== Console ==
+readline 		(console input)

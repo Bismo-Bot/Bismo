@@ -2,18 +2,21 @@
   "name": "bismo",
   "description": "Yet another JS/Discord Framework/Bot",
   "author": {
-    "name": "c0newb",
-    "email": "bismo@cnewb.co",
-    "url": "https://cnewb.co/"
+    "name": "Bismo",
+    "email": "hello@bismo.co",
+    "url": "https://bismo.co/"
   },
   "homepage": "https://github.com/Bismo-Bot/Bismo",
   "dependencies": {
     "@discordjs/opus": "^0.8.0",
     "@discordjs/rest": "^1.1.0",
     "@discordjs/voice": "^0.16.0",
+    "bcrypt": "^5.1.1",
     "discord-api-types": "^0.37.4",
-    "discord.js": "^13.8.0",
-    "libsodium-wrappers": "^0.7.10",
-    "win-dpapi": "^1.1.0"
+    "discord.js": "14.*",
+    "futoin-hkdf": "^1.5.3",
+    "keytar": "^7.9.0",
+    "libsodium-wrappers": "^0.7.13",
+    "readline": "^1.3.0"
   }
 }

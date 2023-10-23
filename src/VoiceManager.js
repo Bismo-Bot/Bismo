@@ -2,6 +2,8 @@ const EventEmitter = require('node:events');
 
 const DiscordVoice = require('@discordjs/voice');
 
+const { ChannelType, PermissionFlagsBits } = require("discord.js");
+
 const crypto = require("node:crypto");
 const { isArrayBufferView } = require('node:util/types');
 const { DiscordAPIError, VoiceChannel } = require('discord.js');
@@ -297,10 +299,9 @@ class BismoVoiceChannel extends EventEmitter {
     constructor(voiceManager, voiceChannelId, guildId, options) {
         super();
         
-
         this.#VoiceManager = voiceManager;
         this.Id = crypto.randomUUID();
-        this.#log = process.Bismo.LogMan.getLogger("BVC-" + this.Id);
+        this.#log = global.LogMan.getLogger("BVC-" + this.Id);
 
         if (typeof voiceChannelId !== "string") {
             if (voiceChannelId.id !== undefined) {
@@ -309,12 +310,10 @@ class BismoVoiceChannel extends EventEmitter {
             }
         } else {
             // this.Id = voiceChannelId;
-            // We don't know the guildId, which is fine, we can just say "hey we don't know which guild this is in, can you search ALL the guilds??"
-            // It's stupid, but works. At scale this will be painful.
-            this.ChannelObject = this.#VoiceManager.Bismo.GetGuildChannelObject(guildId, voiceChannelId);
+            this.ChannelObject = this.#VoiceManager.Bismo.Client.channels.cache.get(voiceChannelId);
         }
 
-        if (this.ChannelObject.type != "GUILD_VOICE" && this.ChannelObject.type != "DM" && this.ChannelObject.type != "GROUP_DM")
+        if (this.ChannelObject.type != ChannelType.GuildVoice && this.ChannelObject.type != ChannelType.DM && this.ChannelObject.type != ChannelType.GroupDM)
             throw new Error("Invalid channel!");
 
         if (options != undefined) {
@@ -326,12 +325,12 @@ class BismoVoiceChannel extends EventEmitter {
 
         if (typeof this.ChannelObject.permissionsFor != "function")
             return undefined;
-        let permissions = this.ChannelObject.permissionsFor(process.Client.user)
-        if (!permissions.has("CONNECT"))
+        let permissions = this.ChannelObject.permissionsFor(this.#VoiceManager.Bismo.Client.user)
+        if (!permissions.has(PermissionFlagsBits.Connect))
             throw new Error("No VoiceChannel permission: connect");
 
         if (!this.options.selfMute)
-            if (!permissions.has("SPEAK")) // We can probably ignore that...
+            if (!permissions.has(PermissionFlagsBits.Speak)) // We can probably ignore that...
                 throw new Error("No VoiceChannel permission: speak");
 
         if (this.ChannelObject === undefined)
@@ -391,6 +390,8 @@ class BismoVoiceChannel extends EventEmitter {
         // If no audioPlayers, leave V/C
         let oldPlayer = this.Focus.CurrentPlayer;
         let voiceConnection = this.GetVoiceConnection();
+        if (voiceConnection == undefined)
+            return false;
         let levels = [...this.Focus.Stack.keys()].sort((a,b) => b-a); // This is the focus levels going from highest to lowest (9->1)
         for (var level of levels) { // For each level (starting at the top)
             let players = this.Focus.Stack.get(level); // Get the players
@@ -844,7 +845,7 @@ class VoiceManager extends EventEmitter {
     // Bismo API
     /**
      * Bismo API
-     * @type {import('./../bismo.js').Bismo}
+     * @type {import('./Bismo.js')}
      */
     Bismo;
 
@@ -867,7 +868,7 @@ class VoiceManager extends EventEmitter {
      * Creates a new Song object
      * 
      * @param {import('discord.js').Client} client Discord bot's client
-     * @param {import('./../bismo.js').Bismo} bismo Bismo API
+     * @param {import('./Bismo.js')} bismo Bismo API
      * 
      */
     constructor(client, bismo) {
