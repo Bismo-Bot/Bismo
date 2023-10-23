@@ -10,12 +10,45 @@
 	v3
 
 
+	MIT License
+
+	Copyright (c) 2023 Bismo-Bot
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy
+	of this software and associated documentation files (the "Software"), to deal
+	in the Software without restriction, including without limitation the rights
+	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+	copies of the Software, and to permit persons to whom the Software is
+	furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all
+	copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+	SOFTWARE.
+
 */
 
 // Which came first? Chicken or the egg?
 const Version = require('./Version.js');
 global.Version = new Version(3,4,0, (process.env.debug)? "debug":"release", "BismoClassRefactor");
 const isWin = process.platform === "win32";
+
+const characters = ['|', '\\', '-', '/'];
+let index = 0;
+let counter = 1;
+async function pLoad() {
+	process.stdout.clearLine();
+	process.stdout.cursorTo(0);
+	process.stdout.write(characters[index] + " .. " + counter.toString());
+	index = (index + 1) % characters.length;
+	counter++;
+}
 
 
 const path = require('node:path');
@@ -25,6 +58,7 @@ global.LogsDirectory = path.join(__dirname, "..", "Logs");
 global.PluginsDirectory = path.join(__dirname, "..", "Plugins");
 
 
+pLoad();
 
 
 // Global behavioral changes (static stuff)
@@ -48,32 +82,40 @@ global.consoleVisible = true;
  * Pull in externals here, imports, libraries
  * 
  */
+pLoad();
 // Basic
 const fs = require("node:fs")
 const EventEmitter = require('node:events');
 const util = require('node:util');
 
+pLoad();
 // Crypto
 const keytar = require("keytar");
+const NeptuneCrypto = require('./NeptuneCrypto.js');
 
+pLoad();
 // Interaction
 const readline = require("readline");
 
 
-// Classes
+pLoad();
+// Config
 const ConfigurationManager = require('./ConfigurationManager.js');
 const BismoConfig = require("./BismoConfig.js");
 
+pLoad();
+// Logging
 const lm = require('./LogMan.js');
 const LogMan = lm.LogMan;
 const Logger = lm.Logger;
 
-const NeptuneCrypto = require('./NeptuneCrypto.js');
 
+pLoad();
 // Discord.JS
 const Discord = require('discord.js');
 const DiscordVoice = require("@discordjs/voice");
 
+pLoad();
 global.Client = new Discord.Client({
 	intents: [ 	
 		Discord.GatewayIntentBits.Guilds,
@@ -97,7 +139,7 @@ global.Client = new Discord.Client({
 	// intents: [ Discord.Intents.ALL ] // Removed in discord.js v13 because you shouldn't do that
 });
 
-
+pLoad();
 
 // Logging
 /** @type {LogMan.ConstructorOptions} */
@@ -122,7 +164,7 @@ const appLog = global.LogMan.getLogger("App");
 global.appLog = appLog;
 
 
-
+pLoad();
 // For debugging, allows you to output a nasty object into console. Neat
 var utilLog = function(obj, depth) {
 	appLog.debug(util.inspect(obj, {depth: (depth!=undefined)? depth : 3}));
@@ -176,6 +218,7 @@ async function Shutdown(shutdownTimeout) {
 }
 global.Shutdown = Shutdown;
 
+pLoad();
 process.on('beforeExit', code => {
 	try { Bismo.shuttingDown = true; } catch {}
 	global.LogMan.close();
@@ -201,13 +244,14 @@ if (process.stdin !== undefined) {
 
 
 // Begin
-
+pLoad();
 const endTerminalCode = "\x1b[0m"; // Reset font color
 if (!debug) {
 	process.stdout.write("\x1B[0m\x1B[2;J\x1B[1;1H"); // Clear the terminal
 	console.clear();
 	console.log(endTerminalCode + "--== Bismo ==--");
 } else {
+	process.stdout.clearLine();
 	console.log(endTerminalCode);
 }
 
